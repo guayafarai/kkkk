@@ -2,7 +2,7 @@
 /**
  * GESTIÓN DE PRODUCTOS Y ACCESORIOS
  * Sistema de Inventario de Celulares
- * VERSIÓN COMPLETA CON CATEGORÍAS INTEGRADAS
+ * VERSIÓN COMPLETA CON CÓDIGO DE BARRAS
  */
 
 error_reporting(E_ALL);
@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if (!empty($codigo)) {
                     $check = $db->prepare("SELECT id FROM productos WHERE codigo_producto = ?");
                     $check->execute([$codigo]);
-                    if ($check->fetch()) throw new Exception('El código ya existe');
+                    if ($check->fetch()) throw new Exception('El código de barras ya existe');
                 }
                 
                 $stmt = $db->prepare("
@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if (!empty($codigo)) {
                     $check = $db->prepare("SELECT id FROM productos WHERE codigo_producto = ? AND id != ?");
                     $check->execute([$codigo, $product_id]);
-                    if ($check->fetch()) throw new Exception('El código ya existe');
+                    if ($check->fetch()) throw new Exception('El código de barras ya existe');
                 }
                 
                 $stmt = $db->prepare("
@@ -456,7 +456,7 @@ foreach ($products as $p) {
     <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
         <form method="GET" class="flex flex-wrap gap-4">
             <div class="flex-1 min-w-64">
-                <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Buscar por nombre, código, marca..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <input type="text" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Buscar por nombre, código de barras, marca..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
             </div>
             <select name="tipo" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
                 <option value="">Todos los tipos</option>
@@ -517,7 +517,7 @@ foreach ($products as $p) {
                             <?php endif; ?>
                         </div>
                         <?php if($product['codigo_producto']): ?>
-                        <p class="text-xs text-gray-500 font-mono bg-gray-100 inline-block px-2 py-1 rounded mt-2"><?php echo htmlspecialchars($product['codigo_producto']); ?></p>
+                        <p class="text-xs text-gray-500 font-mono bg-gray-100 inline-block px-2 py-1 rounded mt-2">🔖 <?php echo htmlspecialchars($product['codigo_producto']); ?></p>
                         <?php endif; ?>
                     </div>
                     <div class="text-right ml-4">
@@ -589,8 +589,8 @@ foreach ($products as $p) {
                     <input type="text" id="nombre" required maxlength="100" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Código SKU</label>
-                    <input type="text" id="codigo_producto" maxlength="50" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Código de Barras</label>
+                    <input type="text" id="codigo_producto" maxlength="50" placeholder="EAN-13, UPC, etc." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
@@ -788,7 +788,7 @@ document.getElementById('tipo')?.addEventListener('change',function(){const cate
 
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeProductModal();closeStockModal();closeAddStockModal()}});
 
-console.log('✅ Sistema de productos con categorías cargado');
+console.log('✅ Sistema de productos con código de barras cargado');
 </script>
 
 </body>
