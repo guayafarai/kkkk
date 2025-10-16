@@ -1,7 +1,7 @@
 <?php
 /**
  * DASHBOARD MODERNO - Sistema de Inventario
- * Versión Premium con diseño profesional
+ * Versión Premium con diseño profesional - MONEDA: SOLES (S/)
  */
 
 require_once '../config/database.php';
@@ -375,7 +375,7 @@ $valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['va
                         </svg>
                     </div>
                     <div class="stat-value" style="color: #8b5cf6;">
-                        $<?php echo number_format($stats['ventas_mes']['ingresos'], 0); ?>
+                        S/ <?php echo number_format($stats['ventas_mes']['ingresos'], 0); ?>
                     </div>
                     <div class="stat-label">Ventas del Mes</div>
                     <div class="text-sm text-gray-500 mt-2">
@@ -407,7 +407,7 @@ $valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['va
                         </svg>
                     </div>
                     <div class="stat-value" style="color: #3b82f6;">
-                        $<?php echo number_format($valor_total_inventario / 1000, 1); ?>K
+                        S/ <?php echo number_format($valor_total_inventario / 1000, 1); ?>K
                     </div>
                     <div class="stat-label">Valor Inventario</div>
                     <div class="text-sm text-gray-500 mt-2">
@@ -490,7 +490,7 @@ $valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['va
                                     </span>
                                     <span class="text-gray-900">
                                         <strong><?php echo $day['ventas']; ?></strong> ventas - 
-                                        <strong class="text-green-600">$<?php echo number_format($day['total'], 0); ?></strong>
+                                        <strong class="text-green-600">S/ <?php echo number_format($day['total'], 0); ?></strong>
                                     </span>
                                 </div>
                                 <div class="w-full bg-gray-200 rounded-full h-2">
@@ -545,7 +545,7 @@ $valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['va
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <div class="font-bold text-green-600">$<?php echo number_format($cel['total_venta'], 0); ?></div>
+                                        <div class="font-bold text-green-600">S/ <?php echo number_format($cel['total_venta'], 0); ?></div>
                                         <div class="text-xs text-gray-500">Hace <?php echo $tiempo; ?></div>
                                     </div>
                                 </div>
@@ -605,7 +605,7 @@ $valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['va
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <div class="font-bold text-green-600">$<?php echo number_format($prod['total_venta'], 0); ?></div>
+                                        <div class="font-bold text-green-600">S/ <?php echo number_format($prod['total_venta'], 0); ?></div>
                                         <div class="text-xs text-gray-500">Hace <?php echo $tiempo; ?></div>
                                     </div>
                                 </div>
@@ -735,12 +735,12 @@ $valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['va
             
             statValues.forEach(element => {
                 const text = element.textContent;
-                const hasNumber = text.match(/[\d,]+/);
+                const hasNumber = text.match(/[\d,\.]+/);
                 
                 if (hasNumber) {
                     const number = parseFloat(hasNumber[0].replace(/,/g, ''));
                     if (!isNaN(number) && number > 0) {
-                        element.textContent = text.replace(/[\d,]+/, '0');
+                        element.textContent = text.replace(/[\d,\.]+/, '0');
                         animateValue(element, 0, number, 1000, text);
                     }
                 }
@@ -749,7 +749,7 @@ $valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['va
 
         function animateValue(element, start, end, duration, template) {
             const startTime = performance.now();
-            const hasDollar = template.includes(');
+            const hasSoles = template.includes('S/');
             const hasK = template.includes('K');
             
             function update(currentTime) {
@@ -763,9 +763,9 @@ $valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['va
                 
                 if (hasK) {
                     displayValue = (current).toFixed(1);
-                    element.textContent = hasDollar ? `${displayValue}K` : `${displayValue}K`;
+                    element.textContent = hasSoles ? `S/ ${displayValue}K` : `${displayValue}K`;
                 } else {
-                    element.textContent = hasDollar ? `${displayValue.toLocaleString()}` : displayValue.toLocaleString();
+                    element.textContent = hasSoles ? `S/ ${displayValue.toLocaleString()}` : displayValue.toLocaleString();
                 }
                 
                 if (progress < 1) {
@@ -807,7 +807,7 @@ $valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['va
             }
         }, 300000);
 
-        console.log('✅ Dashboard cargado');
+        console.log('✅ Dashboard cargado - Moneda: SOLES (S/)');
         console.log('💡 Atajos: Alt+V (Ventas) | Alt+I (Inventario) | Alt+P (Productos) | Alt+R (Reportes)');
     </script>
 
