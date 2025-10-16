@@ -1,8 +1,7 @@
 <?php
 /**
- * DASHBOARD PROFESIONAL COMPLETO
- * Sistema de Inventario de Celulares
- * Versión 3.0 - Optimizado con estilos centralizados
+ * DASHBOARD MODERNO - Sistema de Inventario
+ * Versión Premium con diseño profesional
  */
 
 require_once '../config/database.php';
@@ -18,167 +17,176 @@ $user = getCurrentUser();
 $db = getDB();
 
 // ==========================================
-// OBTENER ESTADÍSTICAS
+// OBTENER ESTADÍSTICAS DEL SISTEMA
 // ==========================================
-$cel_stats = ['total_celulares' => 0, 'cel_disponibles' => 0, 'cel_vendidos' => 0, 'valor_celulares' => 0];
-$prod_stats = ['total_productos' => 0, 'stock_productos' => 0, 'productos_bajo_stock' => 0, 'productos_sin_stock' => 0, 'valor_productos' => 0];
-$today_stats = ['ventas' => 0, 'ingresos' => 0];
-$week_sales = [];
-$top_celulares = [];
-$top_productos = [];
+$stats = [
+    'celulares' => ['total' => 0, 'disponibles' => 0, 'vendidos' => 0, 'valor' => 0],
+    'productos' => ['total' => 0, 'stock' => 0, 'bajo_stock' => 0, 'sin_stock' => 0, 'valor' => 0],
+    'ventas_hoy' => ['cantidad' => 0, 'ingresos' => 0, 'unidades' => 0],
+    'ventas_mes' => ['cantidad' => 0, 'ingresos' => 0],
+    'top_productos' => [],
+    'top_celulares' => [],
+    'ventas_semana' => []
+];
 
 try {
-    // Stats de celulares
+    // Estadísticas de celulares
     if ($user['rol'] === 'admin') {
-        $cel_stats = $db->query("
+        $cel_query = "
             SELECT 
-                COUNT(*) as total_celulares,
-                SUM(CASE WHEN estado = 'disponible' THEN 1 ELSE 0 END) as cel_disponibles,
-                SUM(CASE WHEN estado = 'vendido' THEN 1 ELSE 0 END) as cel_vendidos,
-                SUM(CASE WHEN estado = 'disponible' THEN precio ELSE 0 END) as valor_celulares
+                COUNT(*) as total,
+                SUM(CASE WHEN estado = 'disponible' THEN 1 ELSE 0 END) as disponibles,
+                SUM(CASE WHEN estado = 'vendido' THEN 1 ELSE 0 END) as vendidos,
+                SUM(CASE WHEN estado = 'disponible' THEN precio ELSE 0 END) as valor
             FROM celulares
-        ")->fetch();
+        ";
+        $stats['celulares'] = $db->query($cel_query)->fetch(PDO::FETCH_ASSOC);
     } else {
         $cel_stmt = $db->prepare("
             SELECT 
-                COUNT(*) as total_celulares,
-                SUM(CASE WHEN estado = 'disponible' THEN 1 ELSE 0 END) as cel_disponibles,
-                SUM(CASE WHEN estado = 'vendido' THEN 1 ELSE 0 END) as cel_vendidos,
-                SUM(CASE WHEN estado = 'disponible' THEN precio ELSE 0 END) as valor_celulares
+                COUNT(*) as total,
+                SUM(CASE WHEN estado = 'disponible' THEN 1 ELSE 0 END) as disponibles,
+                SUM(CASE WHEN estado = 'vendido' THEN 1 ELSE 0 END) as vendidos,
+                SUM(CASE WHEN estado = 'disponible' THEN precio ELSE 0 END) as valor
             FROM celulares WHERE tienda_id = ?
         ");
         $cel_stmt->execute([$user['tienda_id']]);
-        $cel_stats = $cel_stmt->fetch();
+        $stats['celulares'] = $cel_stmt->fetch(PDO::FETCH_ASSOC);
     }
     
-    // Stats de productos
+    // Estadísticas de productos
     if ($user['rol'] === 'admin') {
-        $prod_stats = $db->query("
+        $prod_query = "
             SELECT 
-                COUNT(DISTINCT p.id) as total_productos,
-                COALESCE(SUM(s.cantidad_actual), 0) as stock_productos,
-                SUM(CASE WHEN s.cantidad_actual <= p.minimo_stock AND s.cantidad_actual > 0 THEN 1 ELSE 0 END) as productos_bajo_stock,
-                SUM(CASE WHEN COALESCE(s.cantidad_actual, 0) = 0 THEN 1 ELSE 0 END) as productos_sin_stock,
-                COALESCE(SUM(p.precio_venta * s.cantidad_actual), 0) as valor_productos
+                COUNT(DISTINCT p.id) as total,
+                COALESCE(SUM(s.cantidad_actual), 0) as stock,
+                SUM(CASE WHEN s.cantidad_actual <= p.minimo_stock AND s.cantidad_actual > 0 THEN 1 ELSE 0 END) as bajo_stock,
+                SUM(CASE WHEN COALESCE(s.cantidad_actual, 0) = 0 THEN 1 ELSE 0 END) as sin_stock,
+                COALESCE(SUM(p.precio_venta * s.cantidad_actual), 0) as valor
             FROM productos p
             LEFT JOIN stock_productos s ON p.id = s.producto_id
             WHERE p.activo = 1
-        ")->fetch();
+        ";
+        $stats['productos'] = $db->query($prod_query)->fetch(PDO::FETCH_ASSOC);
     } else {
         $prod_stmt = $db->prepare("
             SELECT 
-                COUNT(DISTINCT p.id) as total_productos,
-                COALESCE(SUM(s.cantidad_actual), 0) as stock_productos,
-                SUM(CASE WHEN s.cantidad_actual <= p.minimo_stock AND s.cantidad_actual > 0 THEN 1 ELSE 0 END) as productos_bajo_stock,
-                SUM(CASE WHEN COALESCE(s.cantidad_actual, 0) = 0 THEN 1 ELSE 0 END) as productos_sin_stock,
-                COALESCE(SUM(p.precio_venta * s.cantidad_actual), 0) as valor_productos
+                COUNT(DISTINCT p.id) as total,
+                COALESCE(SUM(s.cantidad_actual), 0) as stock,
+                SUM(CASE WHEN s.cantidad_actual <= p.minimo_stock AND s.cantidad_actual > 0 THEN 1 ELSE 0 END) as bajo_stock,
+                SUM(CASE WHEN COALESCE(s.cantidad_actual, 0) = 0 THEN 1 ELSE 0 END) as sin_stock,
+                COALESCE(SUM(p.precio_venta * s.cantidad_actual), 0) as valor
             FROM productos p
             LEFT JOIN stock_productos s ON p.id = s.producto_id
             WHERE p.activo = 1 AND s.tienda_id = ?
         ");
         $prod_stmt->execute([$user['tienda_id']]);
-        $prod_stats = $prod_stmt->fetch();
+        $stats['productos'] = $prod_stmt->fetch(PDO::FETCH_ASSOC);
     }
     
     // Ventas de hoy
-    $today = date('Y-m-d');
+    $hoy = date('Y-m-d');
     if ($user['rol'] === 'admin') {
-        $today_stmt = $db->prepare("
+        $ventas_hoy_stmt = $db->prepare("
             SELECT 
                 (SELECT COUNT(*) FROM ventas WHERE DATE(fecha_venta) = ?) +
-                (SELECT COUNT(*) FROM ventas_productos WHERE DATE(fecha_venta) = ?) as ventas,
+                (SELECT COUNT(*) FROM ventas_productos WHERE DATE(fecha_venta) = ?) as cantidad,
                 (SELECT COALESCE(SUM(precio_venta), 0) FROM ventas WHERE DATE(fecha_venta) = ?) +
-                (SELECT COALESCE(SUM(precio_unitario * cantidad), 0) FROM ventas_productos WHERE DATE(fecha_venta) = ?) as ingresos
+                (SELECT COALESCE(SUM(precio_unitario * cantidad), 0) FROM ventas_productos WHERE DATE(fecha_venta) = ?) as ingresos,
+                (SELECT COALESCE(SUM(cantidad), 0) FROM ventas_productos WHERE DATE(fecha_venta) = ?) as unidades
         ");
-        $today_stmt->execute([$today, $today, $today, $today]);
+        $ventas_hoy_stmt->execute([$hoy, $hoy, $hoy, $hoy, $hoy]);
     } else {
-        $today_stmt = $db->prepare("
+        $ventas_hoy_stmt = $db->prepare("
             SELECT 
                 (SELECT COUNT(*) FROM ventas WHERE DATE(fecha_venta) = ? AND tienda_id = ?) +
-                (SELECT COUNT(*) FROM ventas_productos WHERE DATE(fecha_venta) = ? AND tienda_id = ?) as ventas,
+                (SELECT COUNT(*) FROM ventas_productos WHERE DATE(fecha_venta) = ? AND tienda_id = ?) as cantidad,
                 (SELECT COALESCE(SUM(precio_venta), 0) FROM ventas WHERE DATE(fecha_venta) = ? AND tienda_id = ?) +
-                (SELECT COALESCE(SUM(precio_unitario * cantidad), 0) FROM ventas_productos WHERE DATE(fecha_venta) = ? AND tienda_id = ?) as ingresos
+                (SELECT COALESCE(SUM(precio_unitario * cantidad), 0) FROM ventas_productos WHERE DATE(fecha_venta) = ? AND tienda_id = ?) as ingresos,
+                (SELECT COALESCE(SUM(cantidad), 0) FROM ventas_productos WHERE DATE(fecha_venta) = ? AND tienda_id = ?) as unidades
         ");
         $tid = $user['tienda_id'];
-        $today_stmt->execute([$today, $tid, $today, $tid, $today, $tid, $today, $tid]);
+        $ventas_hoy_stmt->execute([$hoy, $tid, $hoy, $tid, $hoy, $tid, $hoy, $tid, $hoy, $tid]);
     }
-    $today_stats = $today_stmt->fetch();
+    $stats['ventas_hoy'] = $ventas_hoy_stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Top 5 celulares vendidos
+    // Ventas del mes actual
+    $mes_actual = date('Y-m');
     if ($user['rol'] === 'admin') {
-        $top_celulares = $db->query("
-            SELECT c.marca, c.modelo, COUNT(*) as cantidad, SUM(v.precio_venta) as total_ventas
-            FROM ventas v
-            JOIN celulares c ON v.celular_id = c.id
-            WHERE DATE(v.fecha_venta) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY c.marca, c.modelo
-            ORDER BY cantidad DESC 
-            LIMIT 5
-        ")->fetchAll();
-    } else {
-        $top_cel = $db->prepare("
-            SELECT c.marca, c.modelo, COUNT(*) as cantidad, SUM(v.precio_venta) as total_ventas
-            FROM ventas v
-            JOIN celulares c ON v.celular_id = c.id
-            WHERE v.tienda_id = ? AND DATE(v.fecha_venta) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY c.marca, c.modelo
-            ORDER BY cantidad DESC 
-            LIMIT 5
+        $ventas_mes_stmt = $db->prepare("
+            SELECT 
+                (SELECT COUNT(*) FROM ventas WHERE DATE_FORMAT(fecha_venta, '%Y-%m') = ?) +
+                (SELECT COUNT(*) FROM ventas_productos WHERE DATE_FORMAT(fecha_venta, '%Y-%m') = ?) as cantidad,
+                (SELECT COALESCE(SUM(precio_venta), 0) FROM ventas WHERE DATE_FORMAT(fecha_venta, '%Y-%m') = ?) +
+                (SELECT COALESCE(SUM(precio_unitario * cantidad), 0) FROM ventas_productos WHERE DATE_FORMAT(fecha_venta, '%Y-%m') = ?) as ingresos
         ");
-        $top_cel->execute([$user['tienda_id']]);
-        $top_celulares = $top_cel->fetchAll();
+        $ventas_mes_stmt->execute([$mes_actual, $mes_actual, $mes_actual, $mes_actual]);
+    } else {
+        $ventas_mes_stmt = $db->prepare("
+            SELECT 
+                (SELECT COUNT(*) FROM ventas WHERE DATE_FORMAT(fecha_venta, '%Y-%m') = ? AND tienda_id = ?) +
+                (SELECT COUNT(*) FROM ventas_productos WHERE DATE_FORMAT(fecha_venta, '%Y-%m') = ? AND tienda_id = ?) as cantidad,
+                (SELECT COALESCE(SUM(precio_venta), 0) FROM ventas WHERE DATE_FORMAT(fecha_venta, '%Y-%m') = ? AND tienda_id = ?) +
+                (SELECT COALESCE(SUM(precio_unitario * cantidad), 0) FROM ventas_productos WHERE DATE_FORMAT(fecha_venta, '%Y-%m') = ? AND tienda_id = ?) as ingresos
+        ");
+        $tid = $user['tienda_id'];
+        $ventas_mes_stmt->execute([$mes_actual, $tid, $mes_actual, $tid, $mes_actual, $tid, $mes_actual, $tid]);
     }
+    $stats['ventas_mes'] = $ventas_mes_stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Top 5 productos vendidos
+    // Últimos 5 productos vendidos
     if ($user['rol'] === 'admin') {
-        $top_productos = $db->query("
-            SELECT p.nombre, p.tipo, SUM(vp.cantidad) as cantidad, SUM(vp.precio_unitario * vp.cantidad) as total_ventas
+        $top_prod_stmt = $db->query("
+            SELECT p.nombre, p.tipo, vp.cantidad, 
+                   (vp.precio_unitario * vp.cantidad) as total_venta,
+                   vp.fecha_venta, vp.cliente_nombre
             FROM ventas_productos vp
             JOIN productos p ON vp.producto_id = p.id
-            WHERE DATE(vp.fecha_venta) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY p.id, p.nombre, p.tipo
-            ORDER BY cantidad DESC 
+            ORDER BY vp.fecha_venta DESC
             LIMIT 5
-        ")->fetchAll();
+        ");
     } else {
-        $top_prod = $db->prepare("
-            SELECT p.nombre, p.tipo, SUM(vp.cantidad) as cantidad, SUM(vp.precio_unitario * vp.cantidad) as total_ventas
+        $top_prod_stmt = $db->prepare("
+            SELECT p.nombre, p.tipo, vp.cantidad, 
+                   (vp.precio_unitario * vp.cantidad) as total_venta,
+                   vp.fecha_venta, vp.cliente_nombre
             FROM ventas_productos vp
             JOIN productos p ON vp.producto_id = p.id
-            WHERE vp.tienda_id = ? AND DATE(vp.fecha_venta) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY p.id, p.nombre, p.tipo
-            ORDER BY cantidad DESC 
+            WHERE vp.tienda_id = ?
+            ORDER BY vp.fecha_venta DESC
             LIMIT 5
         ");
-        $top_prod->execute([$user['tienda_id']]);
-        $top_productos = $top_prod->fetchAll();
+        $top_prod_stmt->execute([$user['tienda_id']]);
     }
+    $stats['top_productos'] = $top_prod_stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Actividad reciente (últimas 10 acciones)
+    // Últimos 5 celulares vendidos
     if ($user['rol'] === 'admin') {
-        $recent_activity = $db->query("
-            SELECT al.*, u.nombre as usuario_nombre
-            FROM activity_logs al
-            LEFT JOIN usuarios u ON al.user_id = u.id
-            ORDER BY al.created_at DESC
-            LIMIT 10
-        ")->fetchAll();
-    } else {
-        $recent_stmt = $db->prepare("
-            SELECT al.*, u.nombre as usuario_nombre
-            FROM activity_logs al
-            LEFT JOIN usuarios u ON al.user_id = u.id
-            WHERE al.user_id = ?
-            ORDER BY al.created_at DESC
-            LIMIT 10
+        $top_cel_stmt = $db->query("
+            SELECT c.marca, c.modelo, v.precio_venta as total_venta,
+                   v.fecha_venta, v.cliente_nombre
+            FROM ventas v
+            JOIN celulares c ON v.celular_id = c.id
+            ORDER BY v.fecha_venta DESC
+            LIMIT 5
         ");
-        $recent_stmt->execute([$user['id']]);
-        $recent_activity = $recent_stmt->fetchAll();
+    } else {
+        $top_cel_stmt = $db->prepare("
+            SELECT c.marca, c.modelo, v.precio_venta as total_venta,
+                   v.fecha_venta, v.cliente_nombre
+            FROM ventas v
+            JOIN celulares c ON v.celular_id = c.id
+            WHERE v.tienda_id = ?
+            ORDER BY v.fecha_venta DESC
+            LIMIT 5
+        ");
+        $top_cel_stmt->execute([$user['tienda_id']]);
     }
+    $stats['top_celulares'] = $top_cel_stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Ventas de la última semana (para gráfico)
+    // Ventas de los últimos 7 días (para gráfico)
     if ($user['rol'] === 'admin') {
-        $week_sales_stmt = $db->query("
+        $ventas_semana_stmt = $db->query("
             SELECT 
                 DATE(fecha_venta) as fecha,
                 COUNT(*) as ventas,
@@ -191,9 +199,8 @@ try {
             GROUP BY DATE(fecha_venta)
             ORDER BY fecha ASC
         ");
-        $week_sales = $week_sales_stmt->fetchAll();
     } else {
-        $week_sales_stmt = $db->prepare("
+        $ventas_semana_stmt = $db->prepare("
             SELECT 
                 DATE(fecha_venta) as fecha,
                 COUNT(*) as ventas,
@@ -206,17 +213,15 @@ try {
             GROUP BY DATE(fecha_venta)
             ORDER BY fecha ASC
         ");
-        $week_sales_stmt->execute([$user['tienda_id'], $user['tienda_id']]);
-        $week_sales = $week_sales_stmt->fetchAll();
+        $ventas_semana_stmt->execute([$user['tienda_id'], $user['tienda_id']]);
     }
+    $stats['ventas_semana'] = $ventas_semana_stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (Exception $e) {
     logError("Error en dashboard: " . $e->getMessage());
 }
 
-// Calcular totales
-$total_items = $cel_stats['total_celulares'] + $prod_stats['total_productos'];
-$valor_total_inventario = $cel_stats['valor_celulares'] + $prod_stats['valor_productos'];
+$valor_total_inventario = $stats['celulares']['valor'] + $stats['productos']['valor'];
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -225,455 +230,497 @@ $valor_total_inventario = $cel_stats['valor_celulares'] + $prod_stats['valor_pro
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - <?php echo SYSTEM_NAME; ?></title>
     <?php renderSharedStyles(); ?>
+    <style>
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+        }
+        
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .stat-change {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .stat-change.positive {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .stat-change.negative {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .progress-ring {
+            transform: rotate(-90deg);
+        }
+        
+        .progress-ring-circle {
+            transition: stroke-dashoffset 0.5s ease;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-fade-in-up {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+    </style>
 </head>
-<body>
+<body class="bg-gray-50">
     
     <?php renderNavbar('dashboard'); ?>
     
     <main class="page-content">
         <div class="p-6">
             
-            <!-- Header con bienvenida -->
-            <div class="mb-8 slide-up">
+            <!-- Header -->
+            <div class="mb-8">
                 <h1 class="text-3xl font-bold text-gray-900 mb-2">
-                    👋 Bienvenido, <?php echo htmlspecialchars($user['nombre']); ?>
+                    Hola, <?php echo htmlspecialchars($user['nombre']); ?> 👋
                 </h1>
                 <p class="text-gray-600">
-                    Aquí tienes un resumen de tu negocio
-                    <?php if ($user['tienda_nombre']): ?>
-                        en <strong><?php echo htmlspecialchars($user['tienda_nombre']); ?></strong>
-                    <?php endif; ?>
+                    Bienvenido de nuevo. Aquí está el resumen de tu negocio.
                 </p>
             </div>
 
             <!-- Stats Cards Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 
-                <!-- Celulares Disponibles -->
-                <div class="stats-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                    <div class="stats-card-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                <!-- Ventas Hoy -->
+                <div class="stat-card animate-fade-in-up" style="animation-delay: 0.1s">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                     </div>
-                    <div class="stats-card-value"><?php echo number_format($cel_stats['cel_disponibles']); ?></div>
-                    <div class="stats-card-label">Celulares Disponibles</div>
+                    <div class="stat-value" style="color: #f59e0b;">
+                        S/ <?php echo number_format($stats['ventas_hoy']['ingresos'], 2); ?>
+                    </div>
+                    <div class="stat-label">Ventas de Hoy</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <?php echo $stats['ventas_hoy']['cantidad']; ?> transacciones
+                    </div>
                 </div>
 
-                <!-- Total Celulares -->
-                <div class="stats-card" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
-                    <div class="stats-card-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- Ventas del Mes -->
+                <div class="stat-card animate-fade-in-up" style="animation-delay: 0.2s">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                         </svg>
                     </div>
-                    <div class="stats-card-value"><?php echo number_format($cel_stats['total_celulares']); ?></div>
-                    <div class="stats-card-label">Total Celulares</div>
-                    <div class="text-xs opacity-90 mt-1"><?php echo $cel_stats['cel_vendidos']; ?> vendidos</div>
+                    <div class="stat-value" style="color: #8b5cf6;">
+                        $<?php echo number_format($stats['ventas_mes']['ingresos'], 0); ?>
+                    </div>
+                    <div class="stat-label">Ventas del Mes</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <?php echo $stats['ventas_mes']['cantidad']; ?> transacciones
+                    </div>
                 </div>
 
-                <!-- Stock Productos -->
-                <div class="stats-card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
-                    <div class="stats-card-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- Celulares Disponibles -->
+                <div class="stat-card animate-fade-in-up" style="animation-delay: 0.3s">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                    <div class="stat-value" style="color: #10b981;">
+                        <?php echo number_format($stats['celulares']['disponibles']); ?>
+                    </div>
+                    <div class="stat-label">Celulares Disponibles</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        de <?php echo $stats['celulares']['total']; ?> totales
+                    </div>
+                </div>
+
+                <!-- Valor Inventario -->
+                <div class="stat-card animate-fade-in-up" style="animation-delay: 0.4s">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                         </svg>
                     </div>
-                    <div class="stats-card-value"><?php echo number_format($prod_stats['stock_productos']); ?></div>
-                    <div class="stats-card-label">Stock de Productos</div>
-                </div>
-
-                <!-- Catálogo -->
-                <div class="stats-card" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
-                    <div class="stats-card-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
-                        </svg>
+                    <div class="stat-value" style="color: #3b82f6;">
+                        $<?php echo number_format($valor_total_inventario / 1000, 1); ?>K
                     </div>
-                    <div class="stats-card-value"><?php echo number_format($prod_stats['total_productos']); ?></div>
-                    <div class="stats-card-label">Productos Únicos</div>
-                </div>
-
-                <!-- Ventas Hoy -->
-                <div class="stats-card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                    <div class="stats-card-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
+                    <div class="stat-label">Valor Inventario</div>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <?php echo number_format($stats['productos']['stock']); ?> productos
                     </div>
-                    <div class="stats-card-value"><?php echo $today_stats['ventas']; ?></div>
-                    <div class="stats-card-label">Ventas Hoy</div>
-                    <div class="text-xs opacity-90 mt-1">$<?php echo number_format($today_stats['ingresos'], 2); ?></div>
-                </div>
-
-                <!-- Valor Total -->
-                <div class="stats-card" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
-                    <div class="stats-card-icon">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <div class="stats-card-value">$<?php echo number_format($valor_total_inventario / 1000, 1); ?>K</div>
-                    <div class="stats-card-label">Valor Inventario</div>
                 </div>
 
             </div>
 
-            <!-- Alertas de Stock -->
-            <?php if ($prod_stats['productos_bajo_stock'] > 0 || $prod_stats['productos_sin_stock'] > 0): ?>
-            <div class="mb-8 fade-in">
-                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg shadow-sm">
-                    <div class="flex">
-                        <div class="flex-shrink-0">
-                            <svg class="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-3 flex-1">
-                            <p class="text-sm font-medium text-yellow-800">
-                                ⚠️ Alerta de Inventario
-                            </p>
-                            <div class="mt-2 text-sm text-yellow-700">
-                                <?php if ($prod_stats['productos_sin_stock'] > 0): ?>
-                                    <p>• <strong><?php echo $prod_stats['productos_sin_stock']; ?></strong> productos sin stock</p>
+            <!-- Segunda fila de stats -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-white rounded-lg p-4 text-center shadow-sm">
+                    <p class="text-2xl font-bold text-blue-600"><?php echo $stats['celulares']['total']; ?></p>
+                    <p class="text-sm text-gray-600">Total Celulares</p>
+                </div>
+                <div class="bg-white rounded-lg p-4 text-center shadow-sm">
+                    <p class="text-2xl font-bold text-purple-600"><?php echo number_format($stats['productos']['stock']); ?></p>
+                    <p class="text-sm text-gray-600">Stock Productos</p>
+                </div>
+                <div class="bg-white rounded-lg p-4 text-center shadow-sm">
+                    <p class="text-2xl font-bold text-yellow-600"><?php echo $stats['productos']['bajo_stock']; ?></p>
+                    <p class="text-sm text-gray-600">Stock Bajo</p>
+                </div>
+                <div class="bg-white rounded-lg p-4 text-center shadow-sm">
+                    <p class="text-2xl font-bold text-red-600"><?php echo $stats['celulares']['vendidos']; ?></p>
+                    <p class="text-sm text-gray-600">Vendidos Mes</p>
+                </div>
+            </div>
+
+            <!-- Alertas -->
+            <?php if ($stats['productos']['bajo_stock'] > 0 || $stats['productos']['sin_stock'] > 0): ?>
+            <div class="mb-8">
+                <div class="bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-400 p-4 rounded-lg shadow-sm">
+                    <div class="flex items-start">
+                        <svg class="w-6 h-6 text-yellow-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <div class="flex-1">
+                            <h3 class="text-lg font-semibold text-yellow-900 mb-2">⚠️ Alertas de Inventario</h3>
+                            <div class="space-y-1">
+                                <?php if ($stats['productos']['sin_stock'] > 0): ?>
+                                    <p class="text-sm text-yellow-800">• <strong><?php echo $stats['productos']['sin_stock']; ?></strong> productos sin stock</p>
                                 <?php endif; ?>
-                                <?php if ($prod_stats['productos_bajo_stock'] > 0): ?>
-                                    <p>• <strong><?php echo $prod_stats['productos_bajo_stock']; ?></strong> productos con stock bajo</p>
+                                <?php if ($stats['productos']['bajo_stock'] > 0): ?>
+                                    <p class="text-sm text-yellow-800">• <strong><?php echo $stats['productos']['bajo_stock']; ?></strong> productos con stock bajo</p>
                                 <?php endif; ?>
                             </div>
-                            <div class="mt-3">
-                                <a href="products.php?stock=bajo" class="text-sm font-medium text-yellow-800 hover:text-yellow-900 underline">
-                                    Ver productos →
-                                </a>
-                            </div>
+                            <a href="products.php?stock=bajo" class="inline-block mt-3 text-sm font-medium text-yellow-900 hover:text-yellow-700 underline">
+                                Ver productos →
+                            </a>
                         </div>
                     </div>
                 </div>
             </div>
             <?php endif; ?>
 
-            <!-- Grid de Contenido Principal -->
+            <!-- Gráficos y tablas -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 
-                <!-- Top 5 Celulares -->
-                <div class="card fade-in">
-                    <div class="card-header">
-                        <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                            </svg>
-                            Top 5 Celulares (Último Mes)
-                        </h3>
-                    </div>
-                    <div class="card-body">
-                        <?php if (empty($top_celulares)): ?>
-                            <div class="empty-state">
-                                <p class="text-gray-500">Sin datos de ventas en los últimos 30 días</p>
-                            </div>
-                        <?php else: ?>
-                            <div class="space-y-3">
-                                <?php foreach($top_celulares as $index => $cel): ?>
-                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover-lift">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                                                <?php echo $index + 1; ?>
-                                            </div>
-                                            <div>
-                                                <div class="font-medium text-gray-900"><?php echo htmlspecialchars($cel['marca'] ?? 'N/A'); ?></div>
-                                                <div class="text-sm text-gray-500"><?php echo htmlspecialchars($cel['modelo']); ?></div>
-                                            </div>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="font-bold text-gray-900"><?php echo $cel['cantidad']; ?> ventas</div>
-                                            <div class="text-sm text-green-600">$<?php echo number_format($cel['total_ventas'], 0); ?></div>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-
-                <!-- Top 5 Productos -->
-                <div class="card fade-in">
-                    <div class="card-header">
-                        <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                            </svg>
-                            Top 5 Productos (Último Mes)
-                        </h3>
-                    </div>
-                    <div class="card-body">
-                        <?php if (empty($top_productos)): ?>
-                            <div class="empty-state">
-                                <p class="text-gray-500">Sin datos de ventas en los últimos 30 días</p>
-                            </div>
-                        <?php else: ?>
-                            <div class="space-y-3">
-                                <?php foreach($top_productos as $index => $prod): ?>
-                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover-lift">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
-                                                <?php echo $index + 1; ?>
-                                            </div>
-                                            <div>
-                                                <div class="font-medium text-gray-900 text-sm"><?php echo htmlspecialchars($prod['nombre']); ?></div>
-                                                <div class="text-xs text-gray-500">
-                                                    <span class="badge badge-<?php echo $prod['tipo'] === 'accesorio' ? 'info' : 'warning'; ?>">
-                                                        <?php echo strtoupper($prod['tipo']); ?>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="font-bold text-gray-900"><?php echo $prod['cantidad']; ?> uds</div>
-                                            <div class="text-sm text-green-600">$<?php echo number_format($prod['total_ventas'], 0); ?></div>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Actividad Reciente -->
-            <?php if (!empty($recent_activity)): ?>
-            <div class="card mb-8 fade-in">
-                <div class="card-header">
-                    <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Actividad Reciente
-                    </h3>
-                </div>
-                <div class="card-body">
-                    <div class="space-y-2">
-                        <?php foreach($recent_activity as $activity): ?>
-                            <div class="flex items-start gap-3 p-2 hover:bg-gray-50 rounded transition-colors">
-                                <div class="flex-shrink-0 mt-1">
-                                    <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-sm text-gray-900">
-                                        <span class="font-medium"><?php echo htmlspecialchars($activity['usuario_nombre'] ?? 'Sistema'); ?></span>
-                                        <span class="text-gray-600"> - <?php echo htmlspecialchars($activity['action']); ?></span>
-                                    </p>
-                                    <?php if ($activity['description']): ?>
-                                        <p class="text-xs text-gray-500 truncate"><?php echo htmlspecialchars($activity['description']); ?></p>
-                                    <?php endif; ?>
-                                    <p class="text-xs text-gray-400">
-                                        <?php 
-                                            $time_ago = time() - strtotime($activity['created_at']);
-                                            if ($time_ago < 60) {
-                                                echo 'Hace un momento';
-                                            } elseif ($time_ago < 3600) {
-                                                echo 'Hace ' . floor($time_ago / 60) . ' minutos';
-                                            } elseif ($time_ago < 86400) {
-                                                echo 'Hace ' . floor($time_ago / 3600) . ' horas';
-                                            } else {
-                                                echo date('d/m/Y H:i', strtotime($activity['created_at']));
-                                            }
-                                        ?>
-                                    </p>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-                <?php if ($user['rol'] === 'admin'): ?>
-                <div class="card-footer">
-                    <a href="activity_logs.php" class="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                        Ver todos los registros →
-                    </a>
-                </div>
-                <?php endif; ?>
-            </div>
-            <?php endif; ?>
-
-            <!-- Ventas de la Semana (Gráfico Simple) -->
-            <?php if (!empty($week_sales)): ?>
-            <div class="card mb-8 fade-in">
-                <div class="card-header">
-                    <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- Ventas de la Semana -->
+                <?php if (!empty($stats['ventas_semana'])): ?>
+                <div class="chart-container">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg class="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
                         </svg>
-                        Ventas de los Últimos 7 Días
+                        Ventas Últimos 7 Días
                     </h3>
-                </div>
-                <div class="card-body">
                     <div class="space-y-3">
                         <?php 
-                        $max_ventas = max(array_column($week_sales, 'total'));
-                        foreach($week_sales as $day): 
+                        $max_ventas = max(array_column($stats['ventas_semana'], 'total'));
+                        foreach($stats['ventas_semana'] as $day): 
                             $percentage = $max_ventas > 0 ? ($day['total'] / $max_ventas) * 100 : 0;
+                            $fecha = new DateTime($day['fecha']);
                         ?>
-                            <div class="space-y-1">
-                                <div class="flex justify-between text-sm">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
                                     <span class="font-medium text-gray-700">
-                                        <?php 
-                                            $fecha = new DateTime($day['fecha']);
-                                            echo $fecha->format('D d/m');
-                                        ?>
+                                        <?php echo $fecha->format('D d/m'); ?>
                                     </span>
                                     <span class="text-gray-900">
                                         <strong><?php echo $day['ventas']; ?></strong> ventas - 
-                                        <strong class="text-green-600">$<?php echo number_format($day['total'], 2); ?></strong>
+                                        <strong class="text-green-600">$<?php echo number_format($day['total'], 0); ?></strong>
                                     </span>
                                 </div>
-                                <div class="progress">
-                                    <div class="progress-bar" style="width: <?php echo $percentage; ?>%"></div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="h-2 rounded-full transition-all duration-500" 
+                                         style="width: <?php echo $percentage; ?>%; background: linear-gradient(90deg, #10b981 0%, #059669 100%);"></div>
                                 </div>
                             </div>
                         <?php endforeach; ?>
                     </div>
                 </div>
-            </div>
-            <?php endif; ?>
+                <?php endif; ?>
 
-            <!-- Accesos Rápidos -->
-            <div class="card fade-in" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
-                <div class="card-header" style="background: transparent; border: none;">
-                    <h2 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- Últimos Celulares Vendidos -->
+                <div class="chart-container">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg class="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                        Últimos Celulares Vendidos
+                    </h3>
+                    <?php if (empty($stats['top_celulares'])): ?>
+                        <div class="text-center py-8">
+                            <p class="text-gray-500">Sin ventas recientes</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="space-y-3">
+                            <?php foreach($stats['top_celulares'] as $index => $cel): 
+                                $tiempo_transcurrido = time() - strtotime($cel['fecha_venta']);
+                                if ($tiempo_transcurrido < 3600) {
+                                    $tiempo = floor($tiempo_transcurrido / 60) . ' min';
+                                } elseif ($tiempo_transcurrido < 86400) {
+                                    $tiempo = floor($tiempo_transcurrido / 3600) . ' h';
+                                } else {
+                                    $tiempo = floor($tiempo_transcurrido / 86400) . ' días';
+                                }
+                            ?>
+                                <div class="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg hover:shadow-md transition-all">
+                                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs" 
+                                         style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                                        <?php echo $index + 1; ?>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-medium text-gray-900 truncate"><?php echo htmlspecialchars($cel['marca'] ?? 'N/A'); ?></div>
+                                        <div class="text-sm text-gray-600 truncate"><?php echo htmlspecialchars($cel['modelo']); ?></div>
+                                        <div class="text-xs text-gray-500 mt-1">
+                                            <span class="inline-flex items-center">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                                </svg>
+                                                <?php echo htmlspecialchars($cel['cliente_nombre']); ?>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="font-bold text-green-600">$<?php echo number_format($cel['total_venta'], 0); ?></div>
+                                        <div class="text-xs text-gray-500">Hace <?php echo $tiempo; ?></div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Top Productos y Accesos Rápidos -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                
+                <!-- Últimos Productos Vendidos -->
+                <div class="chart-container">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg class="w-5 h-5 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                        </svg>
+                        Últimos Productos Vendidos
+                    </h3>
+                    <?php if (empty($stats['top_productos'])): ?>
+                        <div class="text-center py-8">
+                            <p class="text-gray-500">Sin ventas recientes</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="space-y-3">
+                            <?php foreach($stats['top_productos'] as $index => $prod): 
+                                $tiempo_transcurrido = time() - strtotime($prod['fecha_venta']);
+                                if ($tiempo_transcurrido < 3600) {
+                                    $tiempo = floor($tiempo_transcurrido / 60) . ' min';
+                                } elseif ($tiempo_transcurrido < 86400) {
+                                    $tiempo = floor($tiempo_transcurrido / 3600) . ' h';
+                                } else {
+                                    $tiempo = floor($tiempo_transcurrido / 86400) . ' días';
+                                }
+                            ?>
+                                <div class="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg hover:shadow-md transition-all">
+                                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs" 
+                                         style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                                        <?php echo $index + 1; ?>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-medium text-gray-900 text-sm truncate"><?php echo htmlspecialchars($prod['nombre']); ?></div>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <span class="inline-block px-2 py-0.5 rounded-full text-xs <?php echo $prod['tipo'] === 'accesorio' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'; ?>">
+                                                <?php echo strtoupper($prod['tipo']); ?>
+                                            </span>
+                                            <span class="text-xs text-gray-600"><?php echo $prod['cantidad']; ?> uds</span>
+                                        </div>
+                                        <div class="text-xs text-gray-500 mt-1">
+                                            <span class="inline-flex items-center">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                                </svg>
+                                                <?php echo htmlspecialchars($prod['cliente_nombre']); ?>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="font-bold text-green-600">$<?php echo number_format($prod['total_venta'], 0); ?></div>
+                                        <div class="text-xs text-gray-500">Hace <?php echo $tiempo; ?></div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Accesos Rápidos -->
+                <div class="chart-container" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg class="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                         </svg>
                         Accesos Rápidos
-                    </h2>
-                </div>
-                <div class="card-body">
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
                         
-                        <!-- Vender Celular -->
-                        <a href="sales.php" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center transition-all" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                        <a href="sales.php" class="group bg-white hover:bg-blue-50 p-4 rounded-lg text-center transition-all hover:shadow-md">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-lg flex items-center justify-center" 
+                                 style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
                                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
                                 </svg>
                             </div>
-                            <p class="text-sm font-medium text-gray-900">Vender Celular</p>
+                            <p class="text-sm font-medium text-gray-900 group-hover:text-blue-600">Vender Celular</p>
                         </a>
 
-                        <!-- Vender Producto -->
-                        <a href="product_sales.php" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center transition-all" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <a href="product_sales.php" class="group bg-white hover:bg-green-50 p-4 rounded-lg text-center transition-all hover:shadow-md">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-lg flex items-center justify-center" 
+                                 style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
                                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                                 </svg>
                             </div>
-                            <p class="text-sm font-medium text-gray-900">Vender Producto</p>
+                            <p class="text-sm font-medium text-gray-900 group-hover:text-green-600">Vender Producto</p>
                         </a>
 
-                        <!-- Inventario -->
-                        <a href="inventory.php" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center transition-all" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                        <a href="inventory.php" class="group bg-white hover:bg-purple-50 p-4 rounded-lg text-center transition-all hover:shadow-md">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-lg flex items-center justify-center" 
+                                 style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
                                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
                                 </svg>
                             </div>
-                            <p class="text-sm font-medium text-gray-900">Inventario</p>
+                            <p class="text-sm font-medium text-gray-900 group-hover:text-purple-600">Inventario</p>
                         </a>
 
-                        <!-- Productos -->
-                        <a href="products.php" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center transition-all" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                        <a href="products.php" class="group bg-white hover:bg-yellow-50 p-4 rounded-lg text-center transition-all hover:shadow-md">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-lg flex items-center justify-center" 
+                                 style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
                                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                                 </svg>
                             </div>
-                            <p class="text-sm font-medium text-gray-900">Productos</p>
+                            <p class="text-sm font-medium text-gray-900 group-hover:text-yellow-600">Productos</p>
                         </a>
 
-                        <!-- Reportes -->
-                        <a href="reports.php" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center transition-all" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                        <a href="reports.php" class="group bg-white hover:bg-red-50 p-4 rounded-lg text-center transition-all hover:shadow-md">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-lg flex items-center justify-center" 
+                                 style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
                                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                                 </svg>
                             </div>
-                            <p class="text-sm font-medium text-gray-900">Reportes</p>
+                            <p class="text-sm font-medium text-gray-900 group-hover:text-red-600">Reportes</p>
                         </a>
 
-                        <!-- Catálogo Público -->
-                        <a href="../index.php" target="_blank" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center transition-all" style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
+                        <a href="../index.php" target="_blank" class="group bg-white hover:bg-pink-50 p-4 rounded-lg text-center transition-all hover:shadow-md">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-lg flex items-center justify-center" 
+                                 style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
                                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                                 </svg>
                             </div>
-                            <p class="text-sm font-medium text-gray-900">Ver Catálogo</p>
+                            <p class="text-sm font-medium text-gray-900 group-hover:text-pink-600">Ver Catálogo</p>
                         </a>
 
-                    </div>
-
-                    <?php if (hasPermission('admin')): ?>
-                    <div class="divider-text mt-6">
-                        <span>ADMINISTRACIÓN</span>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                        
-                        <!-- Usuarios -->
-                        <a href="users.php" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-10 h-10 mx-auto mb-2 rounded-full flex items-center justify-center bg-gradient-to-br from-green-500 to-teal-500">
-                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <?php if (hasPermission('admin')): ?>
+                        <a href="users.php" class="group bg-white hover:bg-indigo-50 p-4 rounded-lg text-center transition-all hover:shadow-md">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-lg flex items-center justify-center" 
+                                 style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
+                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
                                 </svg>
                             </div>
-                            <p class="text-xs font-medium text-gray-900">Usuarios</p>
+                            <p class="text-sm font-medium text-gray-900 group-hover:text-indigo-600">Usuarios</p>
                         </a>
 
-                        <!-- Tiendas -->
-                        <a href="stores.php" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-10 h-10 mx-auto mb-2 rounded-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-500">
-                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <a href="stores.php" class="group bg-white hover:bg-teal-50 p-4 rounded-lg text-center transition-all hover:shadow-md">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-lg flex items-center justify-center" 
+                                 style="background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);">
+                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                                 </svg>
                             </div>
-                            <p class="text-xs font-medium text-gray-900">Tiendas</p>
+                            <p class="text-sm font-medium text-gray-900 group-hover:text-teal-600">Tiendas</p>
                         </a>
-
-                        <!-- Categorías -->
-                        <a href="categories.php" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-10 h-10 mx-auto mb-2 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-500 to-orange-500">
-                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
-                                </svg>
-                            </div>
-                            <p class="text-xs font-medium text-gray-900">Categorías</p>
-                        </a>
-
-                        <!-- Config. Catálogo -->
-                        <a href="catalog_settings.php" class="interactive-card text-center group hover:scale-105">
-                            <div class="w-10 h-10 mx-auto mb-2 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500">
-                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                </svg>
-                            </div>
-                            <p class="text-xs font-medium text-gray-900">Config. Catálogo</p>
-                        </a>
+                        <?php endif; ?>
 
                     </div>
-                    <?php endif; ?>
                 </div>
+
             </div>
 
-            <!-- Información del Sistema (Footer) -->
-            <div class="mt-8 text-center text-sm text-gray-500 fade-in">
-                <p>
-                    <?php echo SYSTEM_NAME; ?> v<?php echo SYSTEM_VERSION; ?> | 
-                    <?php echo $user['rol'] === 'admin' ? 'Administrador' : 'Vendedor'; ?>
-                    <?php if ($user['tienda_nombre']): ?>
-                        - <?php echo htmlspecialchars($user['tienda_nombre']); ?>
-                    <?php endif; ?>
-                </p>
-                <p class="text-xs mt-1">
+            <!-- Footer Info -->
+            <div class="mt-8 text-center">
+                <div class="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm">
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-sm text-gray-600">
+                        Sistema activo • <?php echo SYSTEM_NAME; ?> v<?php echo SYSTEM_VERSION; ?>
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">
                     Última actualización: <?php echo date('d/m/Y H:i'); ?>
                 </p>
             </div>
@@ -682,152 +729,86 @@ $valor_total_inventario = $cel_stats['valor_celulares'] + $prod_stats['valor_pro
     </main>
 
     <script>
-        // Log del sistema
-        console.log('✅ Dashboard cargado correctamente');
-        console.log('📊 Estadísticas del sistema:');
-        console.log('   - Celulares disponibles: <?php echo $cel_stats['cel_disponibles']; ?>');
-        console.log('   - Total celulares: <?php echo $cel_stats['total_celulares']; ?>');
-        console.log('   - Stock productos: <?php echo $prod_stats['stock_productos']; ?>');
-        console.log('   - Ventas hoy: <?php echo $today_stats['ventas']; ?>');
-        console.log('   - Ingresos hoy: $<?php echo number_format($today_stats['ingresos'], 2); ?>');
-        console.log('   - Valor inventario: $<?php echo number_format($valor_total_inventario, 2); ?>');
-
-        // Animación de entrada para las cards
+        // Animación de números al cargar
         document.addEventListener('DOMContentLoaded', function() {
-            // Aplicar animaciones escalonadas a las stats cards
-            const statsCards = document.querySelectorAll('.stats-card');
-            statsCards.forEach((card, index) => {
-                card.style.animationDelay = `${index * 0.1}s`;
-            });
-
-            // Efecto de conteo animado para números grandes
-            function animateValue(element, start, end, duration) {
-                const range = end - start;
-                const increment = range / (duration / 16);
-                let current = start;
+            const statValues = document.querySelectorAll('.stat-value');
+            
+            statValues.forEach(element => {
+                const text = element.textContent;
+                const hasNumber = text.match(/[\d,]+/);
                 
-                const timer = setInterval(() => {
-                    current += increment;
-                    if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
-                        clearInterval(timer);
-                        current = end;
+                if (hasNumber) {
+                    const number = parseFloat(hasNumber[0].replace(/,/g, ''));
+                    if (!isNaN(number) && number > 0) {
+                        element.textContent = text.replace(/[\d,]+/, '0');
+                        animateValue(element, 0, number, 1000, text);
                     }
-                    element.textContent = Math.floor(current).toLocaleString();
-                }, 16);
-            }
-
-            // Animar valores de las stats cards
-            const statsValues = document.querySelectorAll('.stats-card-value');
-            statsValues.forEach(element => {
-                const finalValue = parseInt(element.textContent.replace(/[^0-9]/g, ''));
-                if (!isNaN(finalValue) && finalValue > 0) {
-                    element.textContent = '0';
-                    setTimeout(() => {
-                        animateValue(element, 0, finalValue, 1000);
-                    }, 200);
                 }
             });
-
-            // Efecto hover mejorado para accesos rápidos
-            const quickAccessCards = document.querySelectorAll('.interactive-card');
-            quickAccessCards.forEach(card => {
-                card.addEventListener('mouseenter', function() {
-                    this.style.transform = 'translateY(-4px) scale(1.05)';
-                });
-                card.addEventListener('mouseleave', function() {
-                    this.style.transform = 'translateY(0) scale(1)';
-                });
-            });
-
-            // Mostrar notificación de bienvenida (solo primera vez en sesión)
-            if (!sessionStorage.getItem('welcomeShown')) {
-                setTimeout(() => {
-                    showWelcomeNotification();
-                    sessionStorage.setItem('welcomeShown', 'true');
-                }, 500);
-            }
         });
 
-        // Función para mostrar notificación de bienvenida
-        function showWelcomeNotification() {
-            const notification = document.createElement('div');
-            notification.className = 'notification';
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 1rem 1.5rem;
-                border-radius: 0.75rem;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-                z-index: 10000;
-                animation: slideInRight 0.3s ease-out;
-            `;
+        function animateValue(element, start, end, duration, template) {
+            const startTime = performance.now();
+            const hasDollar = template.includes(');
+            const hasK = template.includes('K');
             
-            notification.innerHTML = `
-                <div class="flex items-center gap-3">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <div>
-                        <p class="font-semibold">¡Bienvenido de nuevo!</p>
-                        <p class="text-sm opacity-90">Sistema listo para trabajar</p>
-                    </div>
-                </div>
-            `;
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+                const current = start + (end - start) * easeOutQuart;
+                
+                let displayValue = Math.floor(current);
+                
+                if (hasK) {
+                    displayValue = (current).toFixed(1);
+                    element.textContent = hasDollar ? `${displayValue}K` : `${displayValue}K`;
+                } else {
+                    element.textContent = hasDollar ? `${displayValue.toLocaleString()}` : displayValue.toLocaleString();
+                }
+                
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
             
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.style.animation = 'slideOutRight 0.3s ease-out';
-                setTimeout(() => notification.remove(), 300);
-            }, 3000);
+            requestAnimationFrame(update);
         }
 
         // Atajos de teclado
         document.addEventListener('keydown', function(e) {
-            // Alt + V = Ir a Ventas
-            if (e.altKey && e.key === 'v') {
-                e.preventDefault();
-                window.location.href = 'sales.php';
-            }
-            // Alt + I = Ir a Inventario
-            if (e.altKey && e.key === 'i') {
-                e.preventDefault();
-                window.location.href = 'inventory.php';
-            }
-            // Alt + P = Ir a Productos
-            if (e.altKey && e.key === 'p') {
-                e.preventDefault();
-                window.location.href = 'products.php';
-            }
-            // Alt + R = Ir a Reportes
-            if (e.altKey && e.key === 'r') {
-                e.preventDefault();
-                window.location.href = 'reports.php';
+            if (e.altKey) {
+                switch(e.key) {
+                    case 'v':
+                        e.preventDefault();
+                        window.location.href = 'sales.php';
+                        break;
+                    case 'i':
+                        e.preventDefault();
+                        window.location.href = 'inventory.php';
+                        break;
+                    case 'p':
+                        e.preventDefault();
+                        window.location.href = 'products.php';
+                        break;
+                    case 'r':
+                        e.preventDefault();
+                        window.location.href = 'reports.php';
+                        break;
+                }
             }
         });
 
-        // Auto-refresh cada 5 minutos para mantener datos actualizados
-        let autoRefreshTimer = setTimeout(() => {
-            if (confirm('¿Actualizar dashboard para ver datos más recientes?')) {
+        // Auto-refresh opcional cada 5 minutos
+        setTimeout(() => {
+            if (confirm('¿Actualizar dashboard con datos más recientes?')) {
                 location.reload();
             }
-        }, 300000); // 5 minutos
+        }, 300000);
 
-        // Cancelar auto-refresh si el usuario está interactuando
-        ['click', 'scroll', 'keypress'].forEach(event => {
-            document.addEventListener(event, () => {
-                clearTimeout(autoRefreshTimer);
-            }, { once: true });
-        });
-
-        console.log('💡 Atajos de teclado disponibles:');
-        console.log('   - Alt + V: Ir a Ventas');
-        console.log('   - Alt + I: Ir a Inventario');
-        console.log('   - Alt + P: Ir a Productos');
-        console.log('   - Alt + R: Ir a Reportes');
+        console.log('✅ Dashboard cargado');
+        console.log('💡 Atajos: Alt+V (Ventas) | Alt+I (Inventario) | Alt+P (Productos) | Alt+R (Reportes)');
     </script>
 
 </body>
