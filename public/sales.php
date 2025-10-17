@@ -1,20 +1,51 @@
 <?php
 /**
- * SISTEMA DE VENTAS - Versión 5.0 Simplificada
- * Diseño limpio y moderno - Solo buscador y dispositivos
+ * SISTEMA DE VENTAS - Versión 6.0 CENTRALIZADA
+ * Migrado al sistema de componentes unificado
  * Moneda: Soles (S/)
+ * 
+ * CAMBIOS EN ESTA VERSIÓN:
+ * - Usa includes/components.php para cargar todo
+ * - Usa renderSharedStyles() y renderNavbar()
+ * - Sistema de estilos centralizado
+ * - Mantiene toda la lógica de negocio
+ * - JavaScript externo (sales.js)
  */
 
-require_once '../config/database.php';
-require_once '../includes/auth.php';
-require_once '../includes/styles.php';
-require_once '../includes/navbar_unified.php';
+// ==========================================
+// CARGAR DEPENDENCIAS EN ORDEN CORRECTO
+// ==========================================
 
+// 1. Cargar .env primero
+require_once __DIR__ . '/../includes/dotenv.php';
+$dotenv = SimpleDotenv::createImmutable(__DIR__ . '/..');
+$dotenv->safeLoad();
+
+// 2. Cargar base de datos
+require_once __DIR__ . '/../config/database.php';
+
+// 3. Cargar error handler
+require_once __DIR__ . '/../includes/error_handler.php';
+
+// 4. Cargar autenticación
+require_once __DIR__ . '/../includes/auth.php';
+
+// 5. Cargar componentes (esto carga automáticamente styles.php y navbar_unified.php)
+require_once __DIR__ . '/../includes/components.php';
+
+// ==========================================
+// SEGURIDAD Y SESIÓN
+// ==========================================
 setSecurityHeaders();
 startSecureSession();
 requireLogin();
 
 $user = getCurrentUser();
+if (!$user) {
+    header('Location: login.php');
+    exit();
+}
+
 $db = getDB();
 
 // ==========================================
@@ -155,7 +186,7 @@ $stats = [
 ];
 
 try {
-    // TOTAL de dispositivos disponibles (NO solo 6)
+    // Total de dispositivos disponibles
     if (hasPermission('admin')) {
         $disponibles_stmt = $db->query("
             SELECT COUNT(*) as total
@@ -213,6 +244,10 @@ try {
 } catch(Exception $e) {
     logError("Error obteniendo datos de ventas: " . $e->getMessage());
 }
+
+// ==========================================
+// INICIAR HTML
+// ==========================================
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -221,75 +256,11 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ventas de Celulares - <?php echo SYSTEM_NAME; ?></title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
+    
     <?php renderSharedStyles(); ?>
+    
     <style>
-        /* Estilos específicos - Coincidiendo con Dashboard */
-        .stat-card {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: visible;
-        }
-        
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: -4px;
-            left: 0;
-            right: 0;
-            height: 4px;
-            border-radius: 12px 12px 0 0;
-        }
-        
-        .stat-card:nth-child(1)::before {
-            background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
-        }
-        
-        .stat-card:nth-child(2)::before {
-            background: linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%);
-        }
-        
-        .stat-card:nth-child(3)::before {
-            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-        }
-        
-        .stat-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 1rem;
-        }
-        
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            line-height: 1;
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-label {
-            color: #6b7280;
-            font-size: 0.9rem;
-            font-weight: 500;
-            margin-bottom: 0.25rem;
-        }
-        
-        .stat-detail {
-            color: #9ca3af;
-            font-size: 0.875rem;
-        }
-        
+        /* Estilos específicos de ventas - Complementan el sistema centralizado */
         .search-container {
             position: relative;
             max-width: 600px;
@@ -327,16 +298,16 @@ try {
         .device-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 1rem;
+            gap: 1.5rem;
         }
         
         .device-card {
             background: white;
-            border: 2px solid #e5e7eb;
-            border-radius: 16px;
+            border: 2px solid var(--color-gray-200);
+            border-radius: var(--radius-lg);
             padding: 1.25rem;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all var(--transition-base);
             position: relative;
             overflow: hidden;
         }
@@ -350,21 +321,17 @@ try {
             height: 4px;
             background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-secondary) 100%);
             transform: scaleX(0);
-            transition: transform 0.3s ease;
+            transition: transform var(--transition-base);
         }
         
         .device-card:hover {
             border-color: var(--color-primary);
             transform: translateY(-8px);
-            box-shadow: 0 12px 24px rgba(102, 126, 234, 0.2);
+            box-shadow: var(--shadow-xl);
         }
         
         .device-card:hover::before {
             transform: scaleX(1);
-        }
-        
-        .device-card:active {
-            transform: translateY(-2px);
         }
         
         .device-card.selected {
@@ -405,6 +372,44 @@ try {
         .animate-in {
             animation: slideUp 0.5s ease-out forwards;
         }
+        
+        /* Stats cards específicos para ventas */
+        .sales-stat-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-base);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .sales-stat-card::before {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: 0;
+            right: 0;
+            height: 4px;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        }
+        
+        .sales-stat-card:nth-child(1)::before {
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+        }
+        
+        .sales-stat-card:nth-child(2)::before {
+            background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+        }
+        
+        .sales-stat-card:nth-child(3)::before {
+            background: linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%);
+        }
+        
+        .sales-stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -412,7 +417,7 @@ try {
     <?php renderNavbar('sales'); ?>
     
     <main class="page-content">
-        <div class="p-6 pb-2">
+        <div class="p-6">
             
             <!-- Header -->
             <div class="mb-8">
@@ -430,64 +435,62 @@ try {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 
                 <!-- Ventas de Hoy -->
-                <div class="stat-card animate-fade-in-up" style="animation-delay: 0.1s">
-                    <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <div class="stat-value" style="color: #10b981;">
-                        S/<?php echo number_format($stats['hoy']['ingresos'], 2); ?>
-                    </div>
-                    <div class="stat-label">Ventas de Hoy</div>
-                    <div class="text-sm text-gray-500 mt-2">
-                        <?php echo $stats['hoy']['ventas']; ?> <?php echo $stats['hoy']['ventas'] == 1 ? 'venta' : 'ventas'; ?>
-                    </div>
+                <div class="sales-stat-card animate-fade-in-up" style="animation-delay: 0.1s">
+                    <?php
+                    renderStatCard(
+                        'S/ ' . number_format($stats['hoy']['ingresos'], 2),
+                        'Ventas de Hoy',
+                        [
+                            'color' => 'green',
+                            'icon' => '<svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+                            'change' => $stats['hoy']['ventas'] . ' ventas'
+                        ]
+                    );
+                    ?>
                 </div>
 
                 <!-- Ventas del Mes -->
-                <div class="stat-card animate-fade-in-up" style="animation-delay: 0.2s">
-                    <div class="stat-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                        </svg>
-                    </div>
-                    <div class="stat-value" style="color: #3b82f6;">
-                        S/<?php echo number_format($stats['mes']['ingresos'], 0); ?>
-                    </div>
-                    <div class="stat-label">Ventas del Mes</div>
-                    <div class="text-sm text-gray-500 mt-2">
-                        <?php echo $stats['mes']['ventas']; ?> transacciones
-                    </div>
+                <div class="sales-stat-card animate-fade-in-up" style="animation-delay: 0.2s">
+                    <?php
+                    renderStatCard(
+                        'S/ ' . number_format($stats['mes']['ingresos'], 0),
+                        'Ventas del Mes',
+                        [
+                            'color' => 'blue',
+                            'icon' => '<svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>',
+                            'change' => $stats['mes']['ventas'] . ' transacciones'
+                        ]
+                    );
+                    ?>
                 </div>
 
-                <!-- Disponibles - AHORA MUESTRA TOTAL -->
-                <div class="stat-card animate-fade-in-up" style="animation-delay: 0.3s">
-                    <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                        </svg>
-                    </div>
-                    <div class="stat-value" style="color: #8b5cf6;">
-                        <?php echo $stats['disponibles']; ?>
-                    </div>
-                    <div class="stat-label">Equipos Disponibles</div>
-                    <div class="text-sm text-gray-500 mt-2">
-                        Listos para venta
-                    </div>
+                <!-- Disponibles -->
+                <div class="sales-stat-card animate-fade-in-up" style="animation-delay: 0.3s">
+                    <?php
+                    renderStatCard(
+                        number_format($stats['disponibles']),
+                        'Equipos Disponibles',
+                        [
+                            'color' => 'purple',
+                            'icon' => '<svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>',
+                            'change' => 'Listos para venta'
+                        ]
+                    );
+                    ?>
                 </div>
             </div>
 
             <!-- Info Box -->
-            <div class="alert alert-info mb-8">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                </svg>
-                <div>
-                    <p class="font-medium">💡 Proceso de venta rápido:</p>
+            <?php 
+            renderAlert(
+                '<div>
+                    <p class="font-medium mb-2">💡 Proceso de venta rápido:</p>
                     <p class="text-sm">1. Busca el dispositivo → 2. Haz clic para seleccionar → 3. Completa datos del cliente → 4. Confirma la venta</p>
-                </div>
-            </div>
+                </div>',
+                'info',
+                false
+            );
+            ?>
 
             <!-- Buscador Principal -->
             <div class="search-container mb-8">
@@ -510,19 +513,17 @@ try {
             </div>
 
             <!-- Loading -->
-            <div id="loadingSpinner" class="hidden flex justify-center items-center py-16">
-                <div class="loading-spinner" style="width: 60px; height: 60px;"></div>
-            </div>
+            <?php renderLoadingSpinner(); ?>
 
-            <!-- Grid de Dispositivos - SIN DISPOSITIVOS PRECARGADOS -->
+            <!-- Grid de Dispositivos -->
             <div id="devicesList" class="device-grid">
-                <div class="col-span-full text-center py-8">
-                    <svg class="w-24 h-24 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                    <h3 class="text-xl font-bold text-gray-700 mb-2">Busca un dispositivo para vender</h3>
-                    <p class="text-gray-500">Usa el buscador arriba para encontrar celulares disponibles</p>
-                </div>
+                <?php
+                renderEmptyState(
+                    'Busca un dispositivo para vender',
+                    'Usa el buscador arriba para encontrar celulares disponibles',
+                    ''
+                );
+                ?>
             </div>
         </div>
     </main>
@@ -532,7 +533,7 @@ try {
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
                 <h3 class="modal-title">
-                    <svg class="w-6 h-6 inline-block mr-2 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-6 h-6 inline-block mr-2" style="color: var(--color-success);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
                     </svg>
                     Registrar Venta
@@ -548,9 +549,9 @@ try {
                 <input type="hidden" id="selectedDeviceId">
                 
                 <!-- Info del dispositivo seleccionado -->
-                <div id="deviceInfo" class="hidden mb-6 p-4 rounded-lg" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #10b981;">
+                <div id="deviceInfo" class="hidden mb-6 p-4 rounded-lg" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid var(--color-success);">
                     <div class="flex items-center gap-3">
-                        <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background: #10b981;">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background: var(--color-success);">
                             <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
                             </svg>
@@ -560,7 +561,7 @@ try {
                             <p class="text-sm text-gray-600" id="deviceDetails"></p>
                         </div>
                         <div class="text-right">
-                            <p class="text-2xl font-bold text-success" id="devicePrice"></p>
+                            <p class="text-2xl font-bold" style="color: var(--color-success);" id="devicePrice"></p>
                         </div>
                     </div>
                 </div>
@@ -569,48 +570,36 @@ try {
                     <!-- Información del Cliente -->
                     <div>
                         <h4 class="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-5 h-5" style="color: var(--color-primary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                             </svg>
                             Información del Cliente
                         </h4>
                         
-                        <div class="form-group">
-                            <label class="form-label">
-                                Nombre Completo <span class="text-red-500">*</span>
-                            </label>
-                            <input type="text" 
-                                   id="cliente_nombre" 
-                                   required 
-                                   placeholder="Ej: Juan Pérez García" 
-                                   class="form-input"
-                                   autocomplete="off">
-                        </div>
+                        <?php
+                        renderFormField('text', 'cliente_nombre', 'Nombre Completo', [
+                            'required' => true,
+                            'placeholder' => 'Ej: Juan Pérez García'
+                        ]);
+                        ?>
                         
                         <div class="grid grid-cols-2 gap-4">
-                            <div class="form-group">
-                                <label class="form-label">Teléfono</label>
-                                <input type="tel" 
-                                       id="cliente_telefono" 
-                                       placeholder="999 888 777" 
-                                       class="form-input"
-                                       autocomplete="off">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Email</label>
-                                <input type="email" 
-                                       id="cliente_email" 
-                                       placeholder="correo@ejemplo.com" 
-                                       class="form-input"
-                                       autocomplete="off">
-                            </div>
+                            <?php
+                            renderFormField('tel', 'cliente_telefono', 'Teléfono', [
+                                'placeholder' => '999 888 777'
+                            ]);
+                            
+                            renderFormField('email', 'cliente_email', 'Email', [
+                                'placeholder' => 'correo@ejemplo.com'
+                            ]);
+                            ?>
                         </div>
                     </div>
                     
                     <!-- Detalles de la Venta -->
                     <div>
                         <h4 class="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-5 h-5" style="color: var(--color-primary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                             </svg>
                             Detalles de la Venta
@@ -630,52 +619,5 @@ try {
                                            required 
                                            class="form-input pl-10"
                                            placeholder="0.00">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Método de Pago</label>
-                                <select id="metodo_pago" class="form-select">
-                                    <option value="efectivo">💵 Efectivo</option>
-                                    <option value="tarjeta">💳 Tarjeta</option>
-                                    <option value="transferencia">🏦 Transferencia</option>
-                                    <option value="credito">📝 Crédito</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">
-                                Notas <span class="text-gray-400 text-xs">(opcional)</span>
-                            </label>
-                            <textarea id="notas" 
-                                      rows="2" 
-                                      placeholder="Observaciones adicionales..." 
-                                      class="form-textarea"></textarea>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Botones de Acción -->
-                <div class="flex justify-end gap-3 mt-8 pt-6 border-t">
-                    <button type="button" onclick="closeSaleModal()" class="btn btn-secondary">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                        Cancelar
-                    </button>
-                    <button type="button" onclick="registerSale()" class="btn btn-success">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        Confirmar Venta
-                    </button>
-                </div>
-            </form>
-        </div>
     </div>
-
-    <!-- JavaScript -->
-    <script src="../assets/js/sales.js"></script>
-
-</body>
-</html>
+                            

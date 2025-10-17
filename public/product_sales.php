@@ -1,15 +1,57 @@
 <?php
-require_once '../config/database.php';
-require_once '../includes/auth.php';
+/**
+ * SISTEMA DE VENTAS DE PRODUCTOS - Versión 6.0 CENTRALIZADA
+ * Migrado al sistema de componentes unificado
+ * Moneda: Soles (S/)
+ * 
+ * CAMBIOS EN ESTA VERSIÓN:
+ * - Usa includes/components.php para cargar todo
+ * - Usa renderSharedStyles() y renderNavbar()
+ * - Componentes reutilizables (renderStatCard, renderAlert, etc.)
+ * - Sistema de estilos centralizado con variables CSS
+ * - Mantiene toda la lógica de negocio
+ * - JavaScript inline optimizado
+ */
 
+// ==========================================
+// CARGAR DEPENDENCIAS EN ORDEN CORRECTO
+// ==========================================
+
+// 1. Cargar .env primero
+require_once __DIR__ . '/../includes/dotenv.php';
+$dotenv = SimpleDotenv::createImmutable(__DIR__ . '/..');
+$dotenv->safeLoad();
+
+// 2. Cargar base de datos
+require_once __DIR__ . '/../config/database.php';
+
+// 3. Cargar error handler
+require_once __DIR__ . '/../includes/error_handler.php';
+
+// 4. Cargar autenticación
+require_once __DIR__ . '/../includes/auth.php';
+
+// 5. Cargar componentes (esto carga automáticamente styles.php y navbar_unified.php)
+require_once __DIR__ . '/../includes/components.php';
+
+// ==========================================
+// SEGURIDAD Y SESIÓN
+// ==========================================
 setSecurityHeaders();
 startSecureSession();
 requireLogin();
 
 $user = getCurrentUser();
+if (!$user) {
+    header('Location: login.php');
+    exit();
+}
+
 $db = getDB();
 
-// Procesar acciones AJAX
+// ==========================================
+// PROCESAMIENTO AJAX
+// ==========================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
     
@@ -117,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $db->commit();
                 
                 logActivity($user['id'], 'product_sale', 
-                    "Venta de producto - ID: $producto_id, Cantidad: $cantidad, Total: $precio_total");
+                    "Venta de producto - ID: $producto_id, Cantidad: $cantidad, Total: S/$precio_total");
                 
                 echo json_encode([
                     'success' => true, 
@@ -140,9 +182,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     exit;
 }
 
-// Obtener productos disponibles
+// ==========================================
+// OBTENER DATOS PARA LA VISTA
+// ==========================================
 $productos_disponibles = [];
+$ventas_recientes = [];
+$estadisticas_hoy = ['ventas_hoy' => 0, 'ingresos_hoy' => 0, 'unidades_vendidas_hoy' => 0];
+
 try {
+    // Obtener productos disponibles
     if (hasPermission('admin')) {
         $productos_query = "
             SELECT p.*, c.nombre as categoria_nombre, s.cantidad_actual, s.tienda_id, t.nombre as tienda_nombre
@@ -223,13 +271,12 @@ try {
     $estadisticas_hoy = $stats_stmt->fetch();
     
 } catch(Exception $e) {
-    logError("Error al obtener datos de ventas: " . $e->getMessage());
-    $productos_disponibles = [];
-    $ventas_recientes = [];
-    $estadisticas_hoy = ['ventas_hoy' => 0, 'ingresos_hoy' => 0, 'unidades_vendidas_hoy' => 0];
+    logError("Error al obtener datos de ventas de productos: " . $e->getMessage());
 }
 
-require_once '../includes/navbar_unified.php';
+// ==========================================
+// INICIAR HTML
+// ==========================================
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -237,98 +284,150 @@ require_once '../includes/navbar_unified.php';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ventas de Productos - <?php echo SYSTEM_NAME; ?></title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>">
+    
+    <?php renderSharedStyles(); ?>
+    
     <style>
-        .modal { display: none; }
-        .modal.show { display: flex; }
+        /* Estilos específicos de ventas de productos - Complementan el sistema centralizado */
         .product-card { 
-            transition: all 0.2s ease; 
+            transition: all var(--transition-base);
             cursor: pointer;
+            border: 2px solid var(--color-gray-200);
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            background: white;
         }
+        
         .product-card:hover { 
-            transform: translateY(-2px); 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--color-primary);
         }
+        
         .product-selected { 
             background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%);
-            border-color: #a855f7; 
-            box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1); 
+            border-color: #a855f7 !important;
+            box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1) !important;
         }
-        .stats-card {
-            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-        }
+        
         .search-box {
             position: sticky;
             top: 0;
             background: white;
             z-index: 10;
-            border-bottom: 2px solid #e5e7eb;
+            border-bottom: 2px solid var(--color-gray-200);
         }
-        .loading-spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #8b5cf6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
+        
+        .stats-mini-card {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        
+        /* Animación para nuevos productos */
+        @keyframes slideInProduct {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .product-card {
+            animation: slideInProduct 0.3s ease-out;
+        }
+        
+        /* Badge de stock mejorado */
+        .stock-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.625rem;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: var(--color-success-light);
+            color: #065f46;
         }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-50">
     
     <?php renderNavbar('product_sales'); ?>
     
+    <script src="../assets/js/common.js"></script>
+    
     <main class="page-content">
         <div class="p-6">
+            
+            <!-- Header -->
             <div class="mb-6">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                     <div>
-                        <h2 class="text-3xl font-bold text-gray-900">Ventas de Productos</h2>
-                        <p class="text-gray-600">Accesorios y repuestos para celulares</p>
+                        <h1 class="text-3xl font-bold text-gray-900 mb-2">
+                            🛍️ Ventas de Productos
+                        </h1>
+                        <p class="text-gray-600">
+                            Accesorios y repuestos para celulares
+                        </p>
                     </div>
                     
-                    <div class="stats-card text-white p-4 rounded-lg mt-4 md:mt-0">
+                    <!-- Stats Card Mini -->
+                    <div class="stats-mini-card">
                         <div class="text-center">
                             <p class="text-sm opacity-90">Ventas de Hoy</p>
-                            <p class="text-2xl font-bold"><?php echo $estadisticas_hoy['ventas_hoy']; ?> ventas</p>
-                            <p class="text-sm opacity-90">$<?php echo number_format($estadisticas_hoy['ingresos_hoy'], 2); ?></p>
-                            <p class="text-xs opacity-75"><?php echo $estadisticas_hoy['unidades_vendidas_hoy']; ?> unidades</p>
+                            <p class="text-2xl font-bold">
+                                <?php echo $estadisticas_hoy['ventas_hoy']; ?> ventas
+                            </p>
+                            <p class="text-sm opacity-90">
+                                S/ <?php echo number_format($estadisticas_hoy['ingresos_hoy'], 2); ?>
+                            </p>
+                            <p class="text-xs opacity-75">
+                                <?php echo $estadisticas_hoy['unidades_vendidas_hoy']; ?> unidades
+                            </p>
                         </div>
                     </div>
                 </div>
                 
-                <div class="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
-                    <div class="flex items-center">
-                        <svg class="w-5 h-5 text-purple-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <div>
-                            <p class="font-medium text-purple-800">Venta de productos:</p>
-                            <p class="text-sm text-purple-700">1. Busca el producto por nombre, código o categoría → 2. Selecciona el producto → 3. Ajusta cantidad y precio → 4. Completa datos del cliente → 5. Confirma la venta</p>
-                        </div>
-                    </div>
-                </div>
+                <!-- Info Alert -->
+                <?php 
+                renderAlert(
+                    '<div>
+                        <p class="font-medium mb-1">Venta de productos:</p>
+                        <p class="text-sm">1. Busca el producto por nombre, código o categoría → 2. Selecciona el producto → 3. Ajusta cantidad y precio → 4. Completa datos del cliente → 5. Confirma la venta</p>
+                    </div>',
+                    'info',
+                    false
+                );
+                ?>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div class="bg-white rounded-lg shadow">
+            <!-- Grid Principal: Productos y Ventas -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <!-- Panel de Productos Disponibles -->
+                <div class="card">
+                    <!-- Buscador -->
                     <div class="search-box p-4">
                         <div class="flex items-center gap-3">
                             <div class="flex-1 relative">
-                                <input type="text" id="productSearch" placeholder="Buscar por nombre, código, marca o categoría..." 
-                                       class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                                 </svg>
+                                <input type="text" 
+                                       id="productSearch" 
+                                       placeholder="Buscar por nombre, código, marca o categoría..." 
+                                       class="form-input pl-10">
                             </div>
-                            <button onclick="searchProducts()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors">
+                            <button onclick="searchProducts()" class="btn btn-primary">
                                 Buscar
                             </button>
-                            <button onclick="clearProductSearch()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            <button onclick="clearProductSearch()" class="btn btn-secondary">
                                 Limpiar
                             </button>
                         </div>
@@ -341,48 +440,46 @@ require_once '../includes/navbar_unified.php';
                         </p>
                     </div>
                     
-                    <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                    <!-- Header -->
+                    <div class="card-header">
                         <h3 class="text-lg font-semibold text-gray-900">
                             Productos Disponibles
                             <?php if ($user['rol'] === 'vendedor'): ?>
                                 <span class="text-sm font-normal text-gray-500">- <?php echo htmlspecialchars($user['tienda_nombre']); ?></span>
                             <?php endif; ?>
                         </h3>
-                        <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full" id="productCount">
-                            <?php echo count($productos_disponibles); ?> disponibles
-                        </span>
+                        <?php renderBadge(count($productos_disponibles) . ' disponibles', 'primary'); ?>
                     </div>
                     
-                    <div class="p-6 max-h-96 overflow-y-auto" id="productsContainer">
-                        <div id="loadingProductSpinner" class="hidden flex justify-center items-center py-8">
-                            <div class="loading-spinner"></div>
-                        </div>
+                    <!-- Lista de Productos -->
+                    <div class="card-body max-h-96 overflow-y-auto" id="productsContainer">
+                        <?php renderLoadingSpinner('loadingProductSpinner'); ?>
                         
                         <div id="productsList" class="space-y-3">
                             <?php if (empty($productos_disponibles)): ?>
-                                <div class="text-center py-8">
-                                    <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                                    </svg>
-                                    <p class="text-gray-500 font-medium">No hay productos con stock</p>
-                                    <p class="text-sm text-gray-400 mt-1">
-                                        <?php if ($user['rol'] === 'admin'): ?>
-                                            Ve a <a href="products.php" class="text-purple-600 underline">Productos</a> para agregar stock
-                                        <?php else: ?>
-                                            Contacta al administrador para reponer stock
-                                        <?php endif; ?>
-                                    </p>
-                                </div>
+                                <?php
+                                $actionButton = $user['rol'] === 'admin' 
+                                    ? '<a href="products.php" class="btn btn-primary mt-4">Ir a Productos</a>'
+                                    : '';
+                                    
+                                renderEmptyState(
+                                    'No hay productos con stock',
+                                    $user['rol'] === 'admin' 
+                                        ? 'Ve a Productos para agregar stock' 
+                                        : 'Contacta al administrador para reponer stock',
+                                    $actionButton
+                                );
+                                ?>
                             <?php else: ?>
                                 <?php foreach($productos_disponibles as $producto): ?>
-                                    <div class="product-card border rounded-lg p-4 hover:border-purple-300 transition-all duration-200" 
+                                    <div class="product-card" 
                                          onclick="selectProductForSale(<?php echo htmlspecialchars(json_encode($producto)); ?>)"
                                          data-product-id="<?php echo $producto['id']; ?>-<?php echo $producto['tienda_id']; ?>">
                                         <div class="flex justify-between items-start">
                                             <div class="flex-1">
                                                 <div class="flex items-center gap-2 mb-1">
                                                     <p class="font-medium text-gray-900"><?php echo htmlspecialchars($producto['nombre']); ?></p>
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                    <span class="stock-badge">
                                                         Stock: <?php echo $producto['cantidad_actual']; ?>
                                                     </span>
                                                 </div>
@@ -393,17 +490,13 @@ require_once '../includes/navbar_unified.php';
                                                     </p>
                                                 <?php endif; ?>
                                                 
-                                                <div class="flex flex-wrap gap-2 text-xs text-gray-600">
+                                                <div class="flex flex-wrap gap-2 text-xs">
                                                     <?php if ($producto['marca']): ?>
-                                                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                                            <?php echo htmlspecialchars($producto['marca']); ?>
-                                                        </span>
+                                                        <?php renderBadge($producto['marca'], 'info'); ?>
                                                     <?php endif; ?>
                                                     
                                                     <?php if ($producto['categoria_nombre']): ?>
-                                                        <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded">
-                                                            <?php echo htmlspecialchars($producto['categoria_nombre']); ?>
-                                                        </span>
+                                                        <?php renderBadge($producto['categoria_nombre'], 'secondary'); ?>
                                                     <?php endif; ?>
                                                 </div>
                                                 
@@ -419,7 +512,7 @@ require_once '../includes/navbar_unified.php';
                                             </div>
                                             
                                             <div class="text-right ml-4">
-                                                <p class="font-bold text-lg text-purple-600">$<?php echo number_format($producto['precio_venta'], 2); ?></p>
+                                                <p class="font-bold text-lg text-purple-600">S/ <?php echo number_format($producto['precio_venta'], 2); ?></p>
                                                 <p class="text-xs text-gray-500">por unidad</p>
                                             </div>
                                         </div>
@@ -430,22 +523,22 @@ require_once '../includes/navbar_unified.php';
                     </div>
                 </div>
 
-                <div class="bg-white rounded-lg shadow">
-                    <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <!-- Panel de Ventas Recientes -->
+                <div class="card">
+                    <div class="card-header">
                         <h3 class="text-lg font-semibold text-gray-900">Ventas Recientes</h3>
-                        <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                            Últimas <?php echo count($ventas_recientes); ?> ventas
-                        </span>
+                        <?php renderBadge('Últimas ' . count($ventas_recientes) . ' ventas', 'success'); ?>
                     </div>
-                    <div class="p-6 max-h-96 overflow-y-auto">
+                    
+                    <div class="card-body max-h-96 overflow-y-auto">
                         <?php if (empty($ventas_recientes)): ?>
-                            <div class="text-center py-8">
-                                <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
-                                </svg>
-                                <p class="text-gray-500 font-medium">No hay ventas registradas</p>
-                                <p class="text-sm text-gray-400 mt-1">¡Registra tu primera venta de productos!</p>
-                            </div>
+                            <?php
+                            renderEmptyState(
+                                'No hay ventas registradas',
+                                '¡Registra tu primera venta de productos!',
+                                ''
+                            );
+                            ?>
                         <?php else: ?>
                             <div class="space-y-3">
                                 <?php foreach($ventas_recientes as $venta): ?>
@@ -454,16 +547,14 @@ require_once '../includes/navbar_unified.php';
                                             <div class="flex-1">
                                                 <div class="flex items-center gap-2 mb-1">
                                                     <p class="font-medium text-gray-900"><?php echo htmlspecialchars($venta['producto_nombre']); ?></p>
-                                                    <span class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                                                        <?php echo $venta['cantidad']; ?> ud.
-                                                    </span>
+                                                    <?php renderBadge($venta['cantidad'] . ' ud', 'primary'); ?>
                                                 </div>
                                                 
                                                 <p class="text-sm text-gray-600 mb-1">
                                                     Cliente: <?php echo htmlspecialchars($venta['cliente_nombre']); ?>
                                                 </p>
                                                 
-                                                <div class="flex items-center gap-2 text-xs text-gray-500">
+                                                <div class="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
                                                     <span><?php echo date('d/m/Y H:i', strtotime($venta['fecha_venta'])); ?></span>
                                                     <?php if (hasPermission('admin')): ?>
                                                         <span>•</span>
@@ -477,15 +568,15 @@ require_once '../includes/navbar_unified.php';
                                                 
                                                 <?php if ($venta['descuento'] > 0): ?>
                                                     <p class="text-xs text-orange-600 mt-1">
-                                                        Descuento aplicado: $<?php echo number_format($venta['descuento'], 2); ?>
+                                                        Descuento aplicado: S/ <?php echo number_format($venta['descuento'], 2); ?>
                                                     </p>
                                                 <?php endif; ?>
                                             </div>
                                             
                                             <div class="text-right ml-4">
-                                                <p class="font-bold text-lg text-purple-600">$<?php echo number_format($venta['precio_total'], 2); ?></p>
+                                                <p class="font-bold text-lg text-purple-600">S/ <?php echo number_format($venta['precio_total'], 2); ?></p>
                                                 <p class="text-xs text-gray-500">
-                                                    $<?php echo number_format($venta['precio_unitario'], 2); ?> c/u
+                                                    S/ <?php echo number_format($venta['precio_unitario'], 2); ?> c/u
                                                 </p>
                                             </div>
                                         </div>
@@ -500,24 +591,35 @@ require_once '../includes/navbar_unified.php';
     </main>
 
     <!-- Modal Registrar Venta -->
-    <div id="productSaleModal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
-        <div class="bg-white rounded-lg p-6 w-full max-w-lg mx-4 max-h-screen overflow-y-auto">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-semibold text-gray-900">Registrar Venta de Producto</h3>
-                <button onclick="closeProductSaleModal()" class="text-gray-400 hover:text-gray-600">
+    <div id="productSaleModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <svg class="w-6 h-6 inline-block mr-2" style="color: var(--color-primary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                    Registrar Venta de Producto
+                </h3>
+                <button onclick="closeProductSaleModal()" class="modal-close">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </button>
             </div>
             
-            <form id="productSaleForm" class="space-y-4">
+            <form id="productSaleForm" class="space-y-4" onsubmit="event.preventDefault(); return false;">
                 <input type="hidden" id="selectedProductId">
                 <input type="hidden" id="selectedTiendaId">
                 <input type="hidden" id="maxStock">
                 
-                <div id="productInfo" class="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 p-4 rounded-lg hidden">
+                <!-- Info del producto seleccionado -->
+                <div id="productInfo" class="hidden p-4 rounded-lg" style="background: linear-gradient(135deg, #fdf4ff 0%, #f3e8ff 100%); border: 2px solid #a855f7;">
                     <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background: #a855f7;">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                            </svg>
+                        </div>
                         <div class="flex-1">
                             <p class="font-semibold text-gray-900" id="productName"></p>
                             <p class="text-sm text-gray-600" id="productDetails"></p>
@@ -529,98 +631,104 @@ require_once '../includes/navbar_unified.php';
                     </div>
                 </div>
                 
+                <!-- Detalles de la Venta -->
                 <div class="border-t pt-4">
-                    <h4 class="font-medium text-gray-900 mb-3">Detalles de la Venta</h4>
+                    <h4 class="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5" style="color: var(--color-primary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                        Detalles de la Venta
+                    </h4>
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad *</label>
-                            <input type="number" id="cantidad" min="1" required 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                        <div class="form-group">
+                            <label class="form-label">Cantidad <span class="text-red-500">*</span></label>
+                            <input type="number" id="cantidad" min="1" required class="form-input">
                             <p class="text-xs text-gray-500 mt-1" id="cantidadInfo"></p>
                         </div>
                         
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Precio Unitario *</label>
+                        <div class="form-group">
+                            <label class="form-label">Precio Unitario <span class="text-red-500">*</span></label>
                             <div class="relative">
-                                <span class="absolute left-3 top-2 text-gray-500">$</span>
-                                <input type="number" id="precio_unitario" step="0.01" required 
-                                       class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">S/</span>
+                                <input type="number" id="precio_unitario" step="0.01" required class="form-input pl-10">
                             </div>
                         </div>
                         
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Descuento</label>
+                        <div class="form-group">
+                            <label class="form-label">Descuento</label>
                             <div class="relative">
-                                <span class="absolute left-3 top-2 text-gray-500">$</span>
-                                <input type="number" id="descuento" step="0.01" min="0" value="0"
-                                       class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">S/</span>
+                                <input type="number" id="descuento" step="0.01" min="0" value="0" class="form-input pl-10">
                             </div>
                         </div>
                         
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Método de Pago</label>
-                            <select id="metodo_pago" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                                <option value="efectivo">Efectivo</option>
-                                <option value="tarjeta">Tarjeta</option>
-                                <option value="transferencia">Transferencia</option>
-                                <option value="credito">Crédito</option>
-                            </select>
-                        </div>
+                        <?php
+                        renderFormField('select', 'metodo_pago', 'Método de Pago', [
+                            'options' => [
+                                'efectivo' => 'Efectivo',
+                                'tarjeta' => 'Tarjeta',
+                                'transferencia' => 'Transferencia',
+                                'credito' => 'Crédito'
+                            ]
+                        ]);
+                        ?>
                     </div>
                     
-                    <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="mt-4 p-3 rounded-lg" style="background: var(--color-success-light); border: 2px solid var(--color-success);">
                         <div class="flex justify-between items-center">
-                            <span class="font-medium text-green-800">Total a Pagar:</span>
-                            <span id="totalCalculado" class="text-xl font-bold text-green-700">$0.00</span>
+                            <span class="font-medium" style="color: #065f46;">Total a Pagar:</span>
+                            <span id="totalCalculado" class="text-xl font-bold" style="color: #059669;">S/ 0.00</span>
                         </div>
                     </div>
                 </div>
                 
+                <!-- Información del Cliente -->
                 <div class="border-t pt-4">
-                    <h4 class="font-medium text-gray-900 mb-3">Información del Cliente</h4>
+                    <h4 class="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5" style="color: var(--color-primary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        Información del Cliente
+                    </h4>
                     
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Cliente *</label>
-                            <input type="text" id="cliente_nombre" required 
-                                   placeholder="Nombre completo del cliente"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                        </div>
+                        <?php
+                        renderFormField('text', 'cliente_nombre', 'Nombre del Cliente', [
+                            'required' => true,
+                            'placeholder' => 'Nombre completo del cliente'
+                        ]);
+                        ?>
                         
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                                <input type="tel" id="cliente_telefono" 
-                                       placeholder="Número de contacto"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                            </div>
+                            <?php
+                            renderFormField('tel', 'cliente_telefono', 'Teléfono', [
+                                'placeholder' => 'Número de contacto'
+                            ]);
                             
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input type="email" id="cliente_email" 
-                                       placeholder="correo@ejemplo.com"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
-                            </div>
+                            renderFormField('email', 'cliente_email', 'Email', [
+                                'placeholder' => 'correo@ejemplo.com'
+                            ]);
+                            ?>
                         </div>
                         
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Notas <span class="text-gray-400">(opcional)</span></label>
-                            <textarea id="notas" rows="2" 
-                                      placeholder="Observaciones adicionales sobre la venta..."
-                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"></textarea>
-                        </div>
+                        <?php
+                        renderFormField('textarea', 'notas', 'Notas', [
+                            'placeholder' => 'Observaciones adicionales sobre la venta...',
+                            'rows' => 2,
+                            'help' => 'Opcional'
+                        ]);
+                        ?>
                     </div>
                 </div>
                 
+                <!-- Botones de Acción -->
                 <div class="flex justify-end gap-3 pt-4 border-t">
-                    <button type="button" onclick="closeProductSaleModal()" 
-                            class="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                    <button type="button" onclick="closeProductSaleModal()" class="btn btn-secondary">
                         Cancelar
                     </button>
-                    <button type="button" onclick="registerProductSale()" 
-                            class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button type="button" onclick="registerProductSale()" class="btn btn-success">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                         </svg>
                         Confirmar Venta
@@ -631,13 +739,19 @@ require_once '../includes/navbar_unified.php';
     </div>
 
     <script>
+        // ==========================================
+        // VARIABLES GLOBALES
+        // ==========================================
         let selectedProduct = null;
         let productSearchTimeout = null;
 
+        // ==========================================
+        // BÚSQUEDA DE PRODUCTOS
+        // ==========================================
         function searchProducts() {
             const searchTerm = document.getElementById('productSearch').value.trim();
             
-            document.getElementById('loadingProductSpinner').classList.remove('hidden');
+            showLoading('loadingProductSpinner');
             document.getElementById('productsList').style.opacity = '0.5';
             
             const formData = new FormData();
@@ -652,7 +766,6 @@ require_once '../includes/navbar_unified.php';
             .then(data => {
                 if (data.success) {
                     renderProducts(data.products);
-                    document.getElementById('productCount').textContent = data.products.length + ' encontrados';
                     
                     if (searchTerm) {
                         document.getElementById('searchProductInfo').textContent = 
@@ -662,15 +775,15 @@ require_once '../includes/navbar_unified.php';
                             '<?php echo $user['rol'] === 'vendedor' ? "Mostrando productos de " . htmlspecialchars($user['tienda_nombre']) : "Mostrando todos los productos disponibles"; ?>';
                     }
                 } else {
-                    showNotification('Error al buscar productos: ' + data.message, 'error');
+                    showNotification('Error al buscar productos: ' + data.message, 'danger');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                showNotification('Error en la búsqueda', 'error');
+                showNotification('Error en la búsqueda', 'danger');
             })
             .finally(() => {
-                document.getElementById('loadingProductSpinner').classList.add('hidden');
+                hideLoading('loadingProductSpinner');
                 document.getElementById('productsList').style.opacity = '1';
             });
         }
@@ -696,31 +809,29 @@ require_once '../includes/navbar_unified.php';
             
             products.forEach(product => {
                 html += `
-                    <div class="product-card border rounded-lg p-4 hover:border-purple-300 transition-all duration-200" 
+                    <div class="product-card" 
                          onclick='selectProductForSale(${JSON.stringify(product)})'
                          data-product-id="${product.id}-${product.tienda_id}">
                         <div class="flex justify-between items-start">
                             <div class="flex-1">
                                 <div class="flex items-center gap-2 mb-1">
                                     <p class="font-medium text-gray-900">${escapeHtml(product.nombre)}</p>
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        Stock: ${product.cantidad_actual}
-                                    </span>
+                                    <span class="stock-badge">Stock: ${product.cantidad_actual}</span>
                                 </div>
                                 ${product.codigo_producto ? `
                                     <p class="text-xs text-gray-500 font-mono bg-gray-100 inline-block px-2 py-1 rounded mb-1">
                                         ${escapeHtml(product.codigo_producto)}
                                     </p>
                                 ` : ''}
-                                <div class="flex flex-wrap gap-2 text-xs text-gray-600">
-                                    ${product.marca ? `<span class="bg-blue-100 text-blue-800 px-2 py-1 rounded">${escapeHtml(product.marca)}</span>` : ''}
-                                    ${product.categoria_nombre ? `<span class="bg-gray-100 text-gray-800 px-2 py-1 rounded">${escapeHtml(product.categoria_nombre)}</span>` : ''}
+                                <div class="flex flex-wrap gap-2 text-xs mt-1">
+                                    ${product.marca ? `<span class="badge badge-info">${escapeHtml(product.marca)}</span>` : ''}
+                                    ${product.categoria_nombre ? `<span class="badge badge-secondary">${escapeHtml(product.categoria_nombre)}</span>` : ''}
                                 </div>
                                 ${product.modelo_compatible ? `<p class="text-xs text-gray-500 mt-1">Compatible: ${escapeHtml(product.modelo_compatible)}</p>` : ''}
                                 ${showTienda ? `<p class="text-xs text-blue-600 mt-1">${escapeHtml(product.tienda_nombre)}</p>` : ''}
                             </div>
                             <div class="text-right ml-4">
-                                <p class="font-bold text-lg text-purple-600">${formatPrice(product.precio_venta)}</p>
+                                <p class="font-bold text-lg text-purple-600">S/ ${formatPrice(product.precio_venta)}</p>
                                 <p class="text-xs text-gray-500">por unidad</p>
                             </div>
                         </div>
@@ -736,20 +847,9 @@ require_once '../includes/navbar_unified.php';
             searchProducts();
         }
 
-        document.getElementById('productSearch').addEventListener('input', function() {
-            clearTimeout(productSearchTimeout);
-            productSearchTimeout = setTimeout(() => {
-                searchProducts();
-            }, 500);
-        });
-
-        document.getElementById('productSearch').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                searchProducts();
-            }
-        });
-
+        // ==========================================
+        // SELECCIÓN DE PRODUCTO
+        // ==========================================
         function selectProductForSale(product) {
             selectedProduct = product;
             
@@ -771,7 +871,7 @@ require_once '../includes/navbar_unified.php';
             document.getElementById('productDetails').textContent = 
                 (product.marca || '') + (product.categoria_nombre ? ' - ' + product.categoria_nombre : '');
             document.getElementById('productStock').textContent = `Stock disponible: ${product.cantidad_actual} unidades`;
-            document.getElementById('productPrice').textContent = `${parseFloat(product.precio_venta).toFixed(2)} c/u`;
+            document.getElementById('productPrice').textContent = `S/ ${parseFloat(product.precio_venta).toFixed(2)} c/u`;
             document.getElementById('productInfo').classList.remove('hidden');
             
             document.getElementById('cantidad').value = 1;
@@ -781,13 +881,16 @@ require_once '../includes/navbar_unified.php';
             document.getElementById('cantidadInfo').textContent = `Máximo disponible: ${product.cantidad_actual}`;
             
             calculateTotal();
+            openModal('productSaleModal');
             
-            document.getElementById('productSaleModal').classList.add('show');
             setTimeout(() => document.getElementById('cantidad').focus(), 100);
         }
 
+        // ==========================================
+        // GESTIÓN DEL MODAL
+        // ==========================================
         function closeProductSaleModal() {
-            document.getElementById('productSaleModal').classList.remove('show');
+            closeModal('productSaleModal');
             clearProductSaleForm();
             clearProductSelection();
         }
@@ -809,9 +912,12 @@ require_once '../includes/navbar_unified.php';
             document.getElementById('descuento').value = 0;
             document.getElementById('metodo_pago').value = 'efectivo';
             document.getElementById('notas').value = '';
-            document.getElementById('totalCalculado').textContent = '$0.00';
+            document.getElementById('totalCalculado').textContent = 'S/ 0.00';
         }
 
+        // ==========================================
+        // CÁLCULO DE TOTALES
+        // ==========================================
         function calculateTotal() {
             const cantidad = parseFloat(document.getElementById('cantidad').value) || 0;
             const precioUnitario = parseFloat(document.getElementById('precio_unitario').value) || 0;
@@ -820,34 +926,23 @@ require_once '../includes/navbar_unified.php';
             const subtotal = cantidad * precioUnitario;
             const total = subtotal - descuento;
             
-            document.getElementById('totalCalculado').textContent = `${total.toFixed(2)}`;
+            document.getElementById('totalCalculado').textContent = `S/ ${total.toFixed(2)}`;
             
             if (descuento > subtotal) {
-                document.getElementById('descuento').classList.add('border-red-500');
-                document.getElementById('totalCalculado').classList.add('text-red-600');
-                document.getElementById('totalCalculado').classList.remove('text-green-700');
+                document.getElementById('descuento').classList.add('is-invalid');
+                document.getElementById('totalCalculado').style.color = 'var(--color-danger)';
             } else {
-                document.getElementById('descuento').classList.remove('border-red-500');
-                document.getElementById('totalCalculado').classList.remove('text-red-600');
-                document.getElementById('totalCalculado').classList.add('text-green-700');
+                document.getElementById('descuento').classList.remove('is-invalid');
+                document.getElementById('totalCalculado').style.color = '#059669';
             }
         }
 
-        document.getElementById('cantidad').addEventListener('input', function() {
-            const maxStock = parseInt(document.getElementById('maxStock').value);
-            if (parseInt(this.value) > maxStock) {
-                this.value = maxStock;
-                showNotification(`Stock máximo disponible: ${maxStock}`, 'warning');
-            }
-            calculateTotal();
-        });
-
-        document.getElementById('precio_unitario').addEventListener('input', calculateTotal);
-        document.getElementById('descuento').addEventListener('input', calculateTotal);
-
+        // ==========================================
+        // REGISTRO DE VENTA
+        // ==========================================
         function registerProductSale() {
             if (!selectedProduct) {
-                showNotification('No se ha seleccionado un producto', 'error');
+                showNotification('No se ha seleccionado un producto', 'warning');
                 return;
             }
             
@@ -870,7 +965,7 @@ require_once '../includes/navbar_unified.php';
             }
             
             if (cantidad > maxStock) {
-                showNotification(`Stock insuficiente. Máximo disponible: ${maxStock}`, 'error');
+                showNotification(`Stock insuficiente. Máximo disponible: ${maxStock}`, 'danger');
                 document.getElementById('cantidad').focus();
                 return;
             }
@@ -883,12 +978,12 @@ require_once '../includes/navbar_unified.php';
             
             const total = (cantidad * precio_unitario) - descuento;
             if (total < 0) {
-                showNotification('El descuento no puede ser mayor al total', 'error');
+                showNotification('El descuento no puede ser mayor al total', 'danger');
                 document.getElementById('descuento').focus();
                 return;
             }
             
-            const confirmMessage = `¿Confirmar venta?\n\nProducto: ${selectedProduct.nombre}\nCantidad: ${cantidad} unidades\nCliente: ${cliente_nombre}\nTotal: ${total.toFixed(2)}`;
+            const confirmMessage = `¿Confirmar venta?\n\nProducto: ${selectedProduct.nombre}\nCantidad: ${cantidad} unidades\nCliente: ${cliente_nombre}\nTotal: S/ ${total.toFixed(2)}`;
             
             if (!confirm(confirmMessage)) {
                 return;
@@ -907,10 +1002,7 @@ require_once '../includes/navbar_unified.php';
             formData.append('metodo_pago', document.getElementById('metodo_pago').value);
             formData.append('notas', document.getElementById('notas').value);
             
-            const button = event.target;
-            const originalHTML = button.innerHTML;
-            button.disabled = true;
-            button.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>Procesando...';
+            showLoading();
             
             fetch('product_sales.php', {
                 method: 'POST',
@@ -922,49 +1014,50 @@ require_once '../includes/navbar_unified.php';
                     showNotification('✅ ' + data.message, 'success');
                     clearProductSaleForm();
                     closeProductSaleModal();
-                    
                     showPrintDialogProduct(data.venta_id);
                 } else {
-                    showNotification('❌ ' + data.message, 'error');
+                    showNotification('❌ ' + data.message, 'danger');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                showNotification('❌ Error en la conexión. Por favor intenta nuevamente.', 'error');
+                showNotification('❌ Error en la conexión. Por favor intenta nuevamente.', 'danger');
             })
             .finally(() => {
-                button.disabled = false;
-                button.innerHTML = originalHTML;
+                hideLoading();
             });
         }
 
+        // ==========================================
+        // DIÁLOGO DE IMPRESIÓN
+        // ==========================================
         function showPrintDialogProduct(ventaId) {
             const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.className = 'modal show';
             modal.innerHTML = `
-                <div class="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
-                    <div class="mb-4">
-                        <svg class="w-16 h-16 text-green-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
+                <div class="modal-content text-center" style="max-width: 500px;">
+                    <div class="mb-6">
+                        <div class="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-2xl font-bold text-gray-900 mb-2">¡Venta Registrada!</h3>
+                        <p class="text-gray-600">La venta del producto se ha registrado correctamente.</p>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 mb-2">¡Venta Registrada!</h3>
-                    <p class="text-gray-600 mb-6">La venta del producto se ha registrado correctamente.</p>
-                    <div class="flex gap-3 justify-center">
-                        <button onclick="printProductInvoice(${ventaId})" 
-                                class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors flex items-center">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="flex flex-col gap-3">
+                        <button onclick="printProductInvoice(${ventaId})" class="btn btn-primary w-full">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
                             </svg>
                             Imprimir Nota
                         </button>
-                        <button onclick="closeDialogAndReloadProduct(this)" 
-                                class="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+                        <button onclick="closeDialogAndReloadProduct(this)" class="btn btn-secondary w-full">
                             Continuar sin Imprimir
                         </button>
                     </div>
                     <p class="text-xs text-gray-500 mt-4">
-                        Puedes imprimir la nota más tarde desde el historial de ventas
+                        💡 Puedes imprimir la nota más tarde desde el historial de ventas
                     </p>
                 </div>
             `;
@@ -980,22 +1073,21 @@ require_once '../includes/navbar_unified.php';
             );
             
             if (printWindow) {
-                printWindow.onload = function() {
-                    setTimeout(() => {
-                        location.reload();
-                    }, 500);
-                };
+                printWindow.onload = () => setTimeout(() => location.reload(), 500);
             } else {
-                showNotification('❌ No se pudo abrir la ventana de impresión. Verifica los bloqueadores de ventanas emergentes.', 'error');
+                showNotification('No se pudo abrir la ventana de impresión', 'danger');
                 setTimeout(() => location.reload(), 2000);
             }
         }
 
         function closeDialogAndReloadProduct(button) {
-            button.closest('.fixed').remove();
+            button.closest('.modal').remove();
             setTimeout(() => location.reload(), 300);
         }
 
+        // ==========================================
+        // UTILIDADES
+        // ==========================================
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
@@ -1004,56 +1096,73 @@ require_once '../includes/navbar_unified.php';
         }
 
         function formatPrice(price) {
-            return parseFloat(price).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            return parseFloat(price).toFixed(2);
         }
 
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            const bgColors = {
-                'success': 'bg-green-500',
-                'error': 'bg-red-500', 
-                'warning': 'bg-yellow-500',
-                'info': 'bg-blue-500'
-            };
+        // ==========================================
+        // EVENT LISTENERS
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('✅ Sistema de Ventas de Productos Centralizado v6.0 Cargado');
+            console.log('💰 Moneda: Soles (S/)');
             
-            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transition-all duration-300 ${bgColors[type]} text-white`;
-            notification.textContent = message;
+            // Búsqueda con delay
+            const searchInput = document.getElementById('productSearch');
+            searchInput.addEventListener('input', function() {
+                clearTimeout(productSearchTimeout);
+                productSearchTimeout = setTimeout(() => searchProducts(), 500);
+            });
             
-            document.body.appendChild(notification);
+            // Enter en búsqueda
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    searchProducts();
+                }
+            });
             
-            setTimeout(() => {
-                notification.style.opacity = '0';
-                setTimeout(() => notification.remove(), 300);
-            }, 4000);
-        }
-
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeProductSaleModal();
-            }
-        });
-
-        document.getElementById('cantidad').addEventListener('input', function() {
-            if (this.value < 1) this.value = 1;
-        });
-
-        document.getElementById('precio_unitario').addEventListener('input', function() {
-            if (this.value < 0) this.value = 0;
-        });
-
-        document.getElementById('descuento').addEventListener('input', function() {
-            if (this.value < 0) this.value = 0;
-        });
-
-        document.getElementById('cliente_nombre').addEventListener('blur', function() {
-            const nombre = this.value.trim();
-            const emailField = document.getElementById('cliente_email');
+            // Event listeners para cálculo automático
+            document.getElementById('cantidad').addEventListener('input', function() {
+                const maxStock = parseInt(document.getElementById('maxStock').value);
+                if (parseInt(this.value) > maxStock) {
+                    this.value = maxStock;
+                    showNotification(`Stock máximo disponible: ${maxStock}`, 'warning');
+                }
+                if (this.value < 1) this.value = 1;
+                calculateTotal();
+            });
             
-            if (nombre && !emailField.value) {
-                const sugerencia = nombre.toLowerCase().replace(/\s+/g, '.') + '@ejemplo.com';
-                emailField.placeholder = `Ej: ${sugerencia}`;
-            }
+            document.getElementById('precio_unitario').addEventListener('input', function() {
+                if (this.value < 0) this.value = 0;
+                calculateTotal();
+            });
+            
+            document.getElementById('descuento').addEventListener('input', function() {
+                if (this.value < 0) this.value = 0;
+                calculateTotal();
+            });
+            
+            // Sugerencia de email
+            document.getElementById('cliente_nombre').addEventListener('blur', function() {
+                const nombre = this.value.trim();
+                const emailField = document.getElementById('cliente_email');
+                
+                if (nombre && !emailField.value) {
+                    const sugerencia = nombre.toLowerCase().replace(/\s+/g, '.') + '@ejemplo.com';
+                    emailField.placeholder = `Ej: ${sugerencia}`;
+                }
+            });
+            
+            // Cerrar modal con ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeProductSaleModal();
+                }
+            });
+            
+            console.log('💡 Atajos: Enter (Buscar) | Esc (Cerrar modal)');
         });
     </script>
+
 </body>
 </html>
