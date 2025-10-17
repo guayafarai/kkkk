@@ -1,19 +1,12 @@
 <?php
 /**
- * SISTEMA DE COMPONENTES CENTRALIZADOS
- * Componentes reutilizables para todo el sistema
- * Incluye: Modales, Notificaciones, Formularios, Tablas, Loading, etc.
+ * CORRECCIÓN PARA includes/components.php
  * 
- * USO: require_once '../includes/components.php';
- */
-
-<?php
-/**
- * SISTEMA DE COMPONENTES CENTRALIZADOS
- * Componentes reutilizables para todo el sistema
- * Incluye: Modales, Notificaciones, Formularios, Tablas, Loading, etc.
+ * PROBLEMA DETECTADO:
+ * El archivo components.php tenía código duplicado al inicio
  * 
- * USO: require_once '../includes/components.php';
+ * INSTRUCCIONES:
+ * Reemplaza TODO el contenido de includes/components.php con este archivo
  */
 
 // ============================================================================
@@ -55,37 +48,16 @@ if (!function_exists('renderNavbar')) {
 }
 
 // ============================================================================
-// AHORA SÍ, CONTINUAR CON EL RESTO DE COMPONENTES
-// ============================================================================
-
-/**
- * Modal genérico reutilizable
- * @param string $id ID único del modal
- * @param string $title Título del modal
- * @param string $content Contenido HTML del modal
- * @param array $options Opciones adicionales
- */
-function renderModal($id, $title, $content, $options = []) {
-    // ... resto del código de renderModal
-}
-
-// ... RESTO DE TU ARCHIVO components.php SIN CAMBIOS
-
-// ============================================================================
 // COMPONENTES UI - MODALES
 // ============================================================================
 
 /**
  * Modal genérico reutilizable
- * @param string $id ID único del modal
- * @param string $title Título del modal
- * @param string $content Contenido HTML del modal
- * @param array $options Opciones adicionales
  */
 function renderModal($id, $title, $content, $options = []) {
-    $size = $options['size'] ?? 'medium'; // small, medium, large, full
+    $size = $options['size'] ?? 'medium';
     $show = $options['show'] ?? false;
-    $backdrop = $options['backdrop'] ?? 'static'; // static, true, false
+    $backdrop = $options['backdrop'] ?? 'static';
     
     $sizeClasses = [
         'small' => 'max-w-md',
@@ -122,7 +94,7 @@ function renderModal($id, $title, $content, $options = []) {
 function renderConfirmModal($id, $title, $message, $onConfirm, $options = []) {
     $confirmText = $options['confirmText'] ?? 'Confirmar';
     $cancelText = $options['cancelText'] ?? 'Cancelar';
-    $type = $options['type'] ?? 'danger'; // success, danger, warning, info
+    $type = $options['type'] ?? 'danger';
     
     $content = "
         <div class='text-center py-6'>
@@ -668,524 +640,8 @@ function renderEmptyState($title, $description, $actionButton = null) {
 function renderCommonScripts() {
     ?>
     <script>
-    // ==========================================
-    // GESTIÓN DE MODALES
-    // ==========================================
-    function openModal(modalId) {
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.classList.add('show');
-            document.body.style.overflow = 'hidden';
-        }
-    }
-    
-    function closeModal(modalId) {
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.classList.remove('show');
-            document.body.style.overflow = 'auto';
-        }
-    }
-    
-    // Cerrar modal al hacer clic fuera
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('modal')) {
-            const backdrop = e.target.getAttribute('data-backdrop');
-            if (backdrop !== 'static') {
-                closeModal(e.target.id);
-            }
-        }
-    });
-    
-    // Cerrar modal con Escape
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            const modals = document.querySelectorAll('.modal.show');
-            modals.forEach(modal => {
-                const backdrop = modal.getAttribute('data-backdrop');
-                if (backdrop !== 'static') {
-                    closeModal(modal.id);
-                }
-            });
-        }
-    });
-    
-    // ==========================================
-    // SISTEMA DE NOTIFICACIONES
-    // ==========================================
-    function showNotification(message, type = 'info', duration = 4000) {
-        const colors = {
-            'success': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            'danger': 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-            'warning': 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-            'info': 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
-        };
-        
-        const icons = {
-            'success': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
-            'danger': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
-            'warning': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>',
-            'info': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
-        };
-        
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-2xl max-w-md transition-all duration-300 text-white flex items-center gap-3';
-        notification.style.background = colors[type] || colors['info'];
-        notification.innerHTML = icons[type] + '<span>' + message + '</span>';
-        
-        document.body.appendChild(notification);
-        
-        // Animación de entrada
-        setTimeout(() => {
-            notification.style.transform = 'translateX(0)';
-        }, 10);
-        
-        // Auto-cerrar
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            notification.style.transform = 'translateX(100%)';
-            setTimeout(() => notification.remove(), 300);
-        }, duration);
-        
-        // Cerrar al hacer clic
-        notification.addEventListener('click', () => {
-            notification.style.opacity = '0';
-            notification.style.transform = 'translateX(100%)';
-            setTimeout(() => notification.remove(), 300);
-        });
-    }
-    
-    // ==========================================
-    // LOADING OVERLAY
-    // ==========================================
-    function showLoading(spinnerId = 'loadingSpinner') {
-        const spinner = document.getElementById(spinnerId);
-        if (spinner) {
-            spinner.classList.remove('hidden');
-        }
-    }
-    
-    function hideLoading(spinnerId = 'loadingSpinner') {
-        const spinner = document.getElementById(spinnerId);
-        if (spinner) {
-            spinner.classList.add('hidden');
-        }
-    }
-    
-    // ==========================================
-    // VALIDACIÓN DE FORMULARIOS
-    // ==========================================
-    function validateForm(formId) {
-        const form = document.getElementById(formId);
-        if (!form) return false;
-        
-        let isValid = true;
-        const inputs = form.querySelectorAll('input[required], select[required], textarea[required]');
-        
-        inputs.forEach(input => {
-            if (!input.value.trim()) {
-                input.classList.add('is-invalid');
-                isValid = false;
-            } else {
-                input.classList.remove('is-invalid');
-            }
-        });
-        
-        return isValid;
-    }
-    
-    // Limpiar validación al escribir
-    document.addEventListener('input', function(e) {
-        if (e.target.classList.contains('is-invalid')) {
-            if (e.target.value.trim()) {
-                e.target.classList.remove('is-invalid');
-            }
-        }
-    });
-    
-    // ==========================================
-    // CONFIRMACIÓN DE ACCIONES
-    // ==========================================
-    function confirmAction(message, callback) {
-        if (confirm(message)) {
-            callback();
-        }
-    }
-    
-    // ==========================================
-    // FORMATEO DE NÚMEROS Y MONEDA
-    // ==========================================
-    function formatPrice(price) {
-        return parseFloat(price).toFixed(2);
-    }
-    
-    function formatCurrency(amount, currency = 'S/') {
-        return currency + ' ' + parseFloat(amount).toLocaleString('es-PE', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        });
-    }
-    
-    function formatNumber(number) {
-        return parseInt(number).toLocaleString('es-PE');
-    }
-    
-    // ==========================================
-    // SANITIZACIÓN DE HTML
-    // ==========================================
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
-    // ==========================================
-    // DEBOUNCE PARA BÚSQUEDAS
-    // ==========================================
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-    
-    // ==========================================
-    // COPIAR AL PORTAPAPELES
-    // ==========================================
-    function copyToClipboard(text) {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text).then(() => {
-                showNotification('✅ Copiado al portapapeles', 'success', 2000);
-            }).catch(() => {
-                showNotification('❌ Error al copiar', 'danger', 2000);
-            });
-        } else {
-            // Fallback para navegadores antiguos
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                showNotification('✅ Copiado al portapapeles', 'success', 2000);
-            } catch (err) {
-                showNotification('❌ Error al copiar', 'danger', 2000);
-            }
-            document.body.removeChild(textarea);
-        }
-    }
-    
-    // ==========================================
-    // FORMATEO DE FECHAS
-    // ==========================================
-    function formatDate(dateString, format = 'short') {
-        const date = new Date(dateString);
-        const options = {
-            'short': { year: 'numeric', month: '2-digit', day: '2-digit' },
-            'long': { year: 'numeric', month: 'long', day: 'numeric' },
-            'full': { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            }
-        };
-        
-        return date.toLocaleDateString('es-PE', options[format] || options['short']);
-    }
-    
-    function formatDateTime(dateString) {
-        return formatDate(dateString, 'full');
-    }
-    
-    function timeAgo(dateString) {
-        const date = new Date(dateString);
-        const seconds = Math.floor((new Date() - date) / 1000);
-        
-        let interval = seconds / 31536000;
-        if (interval > 1) return Math.floor(interval) + " años";
-        
-        interval = seconds / 2592000;
-        if (interval > 1) return Math.floor(interval) + " meses";
-        
-        interval = seconds / 86400;
-        if (interval > 1) return Math.floor(interval) + " días";
-        
-        interval = seconds / 3600;
-        if (interval > 1) return Math.floor(interval) + " horas";
-        
-        interval = seconds / 60;
-        if (interval > 1) return Math.floor(interval) + " minutos";
-        
-        return "Hace un momento";
-    }
-    
-    // ==========================================
-    // AJAX HELPERS
-    // ==========================================
-    async function fetchData(url, options = {}) {
-        try {
-            showLoading();
-            const response = await fetch(url, {
-                ...options,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            hideLoading();
-            return data;
-        } catch (error) {
-            hideLoading();
-            showNotification('Error en la conexión: ' + error.message, 'danger');
-            throw error;
-        }
-    }
-    
-    async function postData(url, data) {
-        return fetchData(url, {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    }
-    
-    async function submitForm(formId, url) {
-        const form = document.getElementById(formId);
-        if (!form) return;
-        
-        if (!validateForm(formId)) {
-            showNotification('Por favor completa todos los campos requeridos', 'warning');
-            return;
-        }
-        
-        const formData = new FormData(form);
-        const data = Object.fromEntries(formData);
-        
-        try {
-            const response = await postData(url, data);
-            if (response.success) {
-                showNotification(response.message || 'Operación exitosa', 'success');
-                return response;
-            } else {
-                showNotification(response.message || 'Error en la operación', 'danger');
-                return null;
-            }
-        } catch (error) {
-            showNotification('Error al enviar el formulario', 'danger');
-            return null;
-        }
-    }
-    
-    // ==========================================
-    // ANIMACIONES
-    // ==========================================
-    function animateValue(element, start, end, duration, prefix = '', suffix = '') {
-        const startTime = performance.now();
-        
-        function update(currentTime) {
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            
-            const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-            const current = start + (end - start) * easeOutQuart;
-            
-            element.textContent = prefix + Math.floor(current).toLocaleString('es-PE') + suffix;
-            
-            if (progress < 1) {
-                requestAnimationFrame(update);
-            }
-        }
-        
-        requestAnimationFrame(update);
-    }
-    
-    // ==========================================
-    // DETECCIÓN DE CAMBIOS NO GUARDADOS
-    // ==========================================
-    let formChanged = false;
-    
-    function trackFormChanges(formId) {
-        const form = document.getElementById(formId);
-        if (!form) return;
-        
-        form.addEventListener('input', () => {
-            formChanged = true;
-        });
-        
-        window.addEventListener('beforeunload', (e) => {
-            if (formChanged) {
-                e.preventDefault();
-                e.returnValue = '';
-                return '';
-            }
-        });
-        
-        form.addEventListener('submit', () => {
-            formChanged = false;
-        });
-    }
-    
-    // ==========================================
-    // SCROLL SUAVE
-    // ==========================================
-    function smoothScrollTo(elementId) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    }
-    
-    // ==========================================
-    // TOGGLE DE ELEMENTOS
-    // ==========================================
-    function toggleElement(elementId) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.classList.toggle('hidden');
-        }
-    }
-    
-    function showElement(elementId) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.classList.remove('hidden');
-        }
-    }
-    
-    function hideElement(elementId) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.classList.add('hidden');
-        }
-    }
-    
-    // ==========================================
-    // BÚSQUEDA EN TABLA
-    // ==========================================
-    function searchTable(tableId, searchValue) {
-        const table = document.getElementById(tableId);
-        if (!table) return;
-        
-        const rows = table.querySelectorAll('tbody tr');
-        const searchLower = searchValue.toLowerCase();
-        let visibleCount = 0;
-        
-        rows.forEach(row => {
-            const text = row.textContent.toLowerCase();
-            if (text.includes(searchLower)) {
-                row.style.display = '';
-                visibleCount++;
-            } else {
-                row.style.display = 'none';
-            }
-        });
-        
-        return visibleCount;
-    }
-    
-    // ==========================================
-    // PRINT
-    // ==========================================
-    function printElement(elementId) {
-        const element = document.getElementById(elementId);
-        if (!element) return;
-        
-        const printWindow = window.open('', '', 'height=600,width=800');
-        printWindow.document.write('<html><head><title>Imprimir</title>');
-        printWindow.document.write('<style>');
-        printWindow.document.write('body { font-family: Arial, sans-serif; }');
-        printWindow.document.write('table { width: 100%; border-collapse: collapse; }');
-        printWindow.document.write('th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }');
-        printWindow.document.write('th { background-color: #f2f2f2; }');
-        printWindow.document.write('@media print { .no-print { display: none; } }');
-        printWindow.document.write('</style>');
-        printWindow.document.write('</head><body>');
-        printWindow.document.write(element.innerHTML);
-        printWindow.document.write('</body></html>');
-        printWindow.document.close();
-        printWindow.print();
-    }
-    
-    // ==========================================
-    // EXPORTAR A CSV
-    // ==========================================
-    function exportTableToCSV(tableId, filename = 'export.csv') {
-        const table = document.getElementById(tableId);
-        if (!table) return;
-        
-        const rows = table.querySelectorAll('tr');
-        const csv = [];
-        
-        rows.forEach(row => {
-            const cols = row.querySelectorAll('td, th');
-            const rowData = Array.from(cols).map(col => {
-                let text = col.textContent.trim();
-                // Escapar comillas
-                text = text.replace(/"/g, '""');
-                return `"${text}"`;
-            });
-            csv.push(rowData.join(','));
-        });
-        
-        const csvContent = csv.join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-    
-    // ==========================================
-    // INICIALIZACIÓN
-    // ==========================================
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('✅ Sistema de componentes cargado');
-        
-        // Auto-cerrar alertas dismissibles después de 5 segundos
-        document.querySelectorAll('.alert.dismissible').forEach(alert => {
-            setTimeout(() => {
-                alert.style.opacity = '0';
-                setTimeout(() => alert.remove(), 300);
-            }, 5000);
-        });
-        
-        // Agregar tooltips automáticos
-        document.querySelectorAll('[data-tooltip]').forEach(element => {
-            element.addEventListener('mouseenter', function() {
-                const tooltip = document.createElement('div');
-                tooltip.className = 'tooltip';
-                tooltip.textContent = this.getAttribute('data-tooltip');
-                document.body.appendChild(tooltip);
-                
-                const rect = this.getBoundingClientRect();
-                tooltip.style.top = (rect.top - tooltip.offsetHeight - 8) + 'px';
-                tooltip.style.left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
-            });
-            
-            element.addEventListener('mouseleave', function() {
-                document.querySelectorAll('.tooltip').forEach(t => t.remove());
-            });
-        });
-    });
+    // Ya están cargados en common.js, pero agregamos funciones adicionales si es necesario
+    console.log('✅ Scripts de componentes cargados');
     </script>
     <?php
 }
@@ -1420,7 +876,6 @@ function renderTabs($tabs, $defaultTab = 0) {
     
     <script>
     function switchTab(tabId, index) {
-        // Desactivar todos los tabs y panes
         const container = document.querySelector(`[id^="${tabId}"]`).closest('.tabs-container');
         container.querySelectorAll('.tab').forEach(tab => {
             tab.classList.remove('active');
@@ -1430,7 +885,6 @@ function renderTabs($tabs, $defaultTab = 0) {
             pane.classList.remove('active');
         });
         
-        // Activar el tab y pane seleccionado
         const tabs = container.querySelectorAll('.tab');
         tabs[index].classList.add('active');
         tabs[index].setAttribute('aria-selected', 'true');
@@ -1448,9 +902,6 @@ function renderTabs($tabs, $defaultTab = 0) {
 // FIN DEL ARCHIVO
 // ============================================================================
 
-/**
- * Log de componentes disponibles
- */
 if (defined('DEVELOPMENT_MODE') && DEVELOPMENT_MODE) {
     error_log("✅ Sistema de componentes cargado - " . basename(__FILE__));
 }
