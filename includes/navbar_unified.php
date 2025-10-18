@@ -2,7 +2,7 @@
 /**
  * Navbar/Sidebar Unificado
  * Sistema adaptativo según el rol del usuario
- * VERSIÓN ACTUALIZADA CON CONFIG. EMPRESA
+ * VERSIÓN CORREGIDA - Sin duplicados
  */
 
 if (!function_exists('renderNavbar')) {
@@ -67,7 +67,7 @@ if (!function_exists('renderNavbar')) {
             'roles' => ['admin', 'vendedor']
         ];
         
-        // CONFIGURACIÓN - Solo admin
+        // ✅ CORREGIDO: CONFIGURACIÓN - Solo una vez
         if ($is_admin) {
             $menu_items[] = [
                 'id' => 'divider_config',
@@ -92,34 +92,11 @@ if (!function_exists('renderNavbar')) {
                 'roles' => ['admin']
             ];
             
-            // ⭐ NUEVO: Categorías de Productos
             $menu_items[] = [
                 'id' => 'categories',
                 'label' => 'Categorías',
                 'url' => 'categories.php',
                 'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>',
-                'roles' => ['admin']
-            ];
-            $menu_items[] = [
-                'id' => 'divider_config',
-                'type' => 'divider',
-                'label' => 'CONFIGURACIÓN',
-                'roles' => ['admin']
-            ];
-            
-            $menu_items[] = [
-                'id' => 'users',
-                'label' => 'Usuarios',
-                'url' => 'users.php',
-                'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>',
-                'roles' => ['admin']
-            ];
-            
-            $menu_items[] = [
-                'id' => 'stores',
-                'label' => 'Tiendas',
-                'url' => 'stores.php',
-                'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>',
                 'roles' => ['admin']
             ];
             
@@ -131,7 +108,6 @@ if (!function_exists('renderNavbar')) {
                 'roles' => ['admin']
             ];
             
-            // ⭐ NUEVO: Config. Empresa
             $menu_items[] = [
                 'id' => 'company_config',
                 'label' => 'Config. Empresa',
@@ -245,7 +221,6 @@ if (!function_exists('renderNavbar')) {
                 letter-spacing: 0.1em;
             }
             
-            /* Mobile */
             @media (max-width: 768px) {
                 .sidebar {
                     transform: translateX(-100%);
@@ -276,19 +251,15 @@ if (!function_exists('renderNavbar')) {
             }
         </style>
         
-        <!-- Mobile Overlay -->
         <div class="mobile-overlay" id="mobileOverlay" onclick="closeSidebar()"></div>
         
-        <!-- Mobile Toggle Button -->
         <button onclick="toggleSidebar()" class="fixed top-4 left-4 z-50 md:hidden bg-purple-600 text-white p-3 rounded-lg shadow-lg">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
             </svg>
         </button>
         
-        <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
-            <!-- Header -->
             <div class="p-6 border-b border-white border-opacity-20">
                 <div class="flex items-center justify-between">
                     <div>
@@ -303,7 +274,6 @@ if (!function_exists('renderNavbar')) {
                 </div>
             </div>
             
-            <!-- User Info -->
             <div class="p-4 border-b border-white border-opacity-20">
                 <div class="flex items-center">
                     <div class="w-10 h-10 rounded-full bg-white bg-opacity-20 flex items-center justify-center mr-3">
@@ -323,7 +293,6 @@ if (!function_exists('renderNavbar')) {
                 </div>
             </div>
             
-            <!-- Navigation -->
             <nav class="py-4">
                 <?php foreach ($menu_items as $item): ?>
                     <?php if (!in_array($user['rol'], $item['roles'])): continue; endif; ?>
@@ -348,7 +317,6 @@ if (!function_exists('renderNavbar')) {
                 <?php endforeach; ?>
             </nav>
             
-            <!-- Footer -->
             <div class="p-4 border-t border-white border-opacity-20 mt-auto">
                 <p class="text-xs text-purple-200 text-center">
                     © <?php echo date('Y'); ?> ChamoTV<br>
@@ -372,7 +340,6 @@ if (!function_exists('renderNavbar')) {
                 overlay.classList.remove('show');
             }
             
-            // Cerrar sidebar al hacer clic en un enlace (mobile)
             document.querySelectorAll('.sidebar a').forEach(link => {
                 link.addEventListener('click', () => {
                     if (window.innerWidth < 768) {

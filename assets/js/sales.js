@@ -1,15 +1,13 @@
 /**
  * SALES.JS - Sistema de Ventas de Celulares
- * Versión 8.0 FINAL - Todas las correcciones aplicadas
+ * Versión 8.1 FINAL - CORRECCIONES APLICADAS
  * 
- * CORRECCIONES APLICADAS:
+ * CORRECCIONES EN ESTA VERSIÓN:
+ * ✅ Función formatPrice() agregada y funcional
  * ✅ AJAX funcional sin recargar página
  * ✅ Búsqueda en tiempo real optimizada
  * ✅ Prevención de submits accidentales
  * ✅ Manejo de errores robusto
- * ✅ Responsive design para móvil
- * ✅ Validaciones completas
- * ✅ Feedback visual mejorado
  */
 
 // ==========================================
@@ -19,7 +17,89 @@ let selectedDevice = null;
 let searchTimeout = null;
 
 // ==========================================
-// BÚSQUEDA DE DISPOSITIVOS - OPTIMIZADA
+// UTILIDADES - CRÍTICO: DEFINIR ANTES DE USAR
+// ==========================================
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const precioInput = document.getElementById('precio_venta');
+    if (precioInput) {
+        precioInput.addEventListener('input', function() {
+            let value = parseFloat(this.value);
+            
+            if (isNaN(value) || value < 0) {
+                this.value = 0;
+            }
+        });
+        
+        precioInput.addEventListener('blur', function() {
+            const value = parseFloat(this.value);
+            if (isNaN(value) || value <= 0) {
+                this.classList.add('is-invalid');
+            } else {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            }
+        });
+    }
+    
+    const nombreInput = document.getElementById('cliente_nombre');
+    const emailField = document.getElementById('cliente_email');
+    if (nombreInput && emailField) {
+        nombreInput.addEventListener('blur', function() {
+            const nombre = this.value.trim();
+            
+            if (nombre && !emailField.value) {
+                const nombreLimpio = nombre.toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/\s+/g, '.')
+                    .replace(/[^a-z0-9.]/g, '');
+                
+                emailField.placeholder = `Ej: ${nombreLimpio}@ejemplo.com`;
+            }
+        });
+    }
+    
+    const saleForm = document.getElementById('saleForm');
+    if (saleForm) {
+        saleForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            registerSale();
+            return false;
+        });
+    }
+    
+    if ('ontouchstart' in window) {
+        document.body.classList.add('touch-device');
+        console.log('📱 Dispositivo táctil detectado');
+    }
+    
+    console.log('💡 Atajos: Ctrl+F (Buscar) | Esc (Cerrar modal)');
+    console.log('🔍 Escribe en el buscador para encontrar dispositivos');
+    
+    if (window.SALES_CONFIG) {
+        console.log('📊 Configuración:', {
+            disponibles: window.SALES_CONFIG.disponibles,
+            ventasHoy: window.SALES_CONFIG.ventasHoy
+        });
+    }
+    
+    console.log('🚀 Sistema completamente inicializado');
+}); div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatPrice(price) {
+    const num = parseFloat(price);
+    if (isNaN(num)) return '0.00';
+    return num.toFixed(2);
+}
+
+// ==========================================
+// BÚSQUEDA DE DISPOSITIVOS
 // ==========================================
 function searchDevices() {
     const searchInput = document.getElementById('deviceSearch');
@@ -27,32 +107,28 @@ function searchDevices() {
     
     console.log('🔍 Buscando:', searchTerm || '[búsqueda vacía]');
     
-    // Mostrar/ocultar botón de limpiar
     const clearBtn = document.getElementById('clearSearchBtn');
     if (clearBtn) {
         clearBtn.classList.toggle('hidden', !searchTerm);
     }
     
-    // Mostrar loading
     showLoading();
     
     const formData = new FormData();
     formData.append('action', 'search_devices');
     formData.append('search', searchTerm);
     
-    // CRÍTICO: Usar fetch con configuración específica para AJAX
     fetch('sales.php', {
         method: 'POST',
         body: formData,
         headers: {
-            'X-Requested-With': 'XMLHttpRequest' // Identifica como AJAX
+            'X-Requested-With': 'XMLHttpRequest'
         },
-        credentials: 'same-origin' // Incluir cookies de sesión
+        credentials: 'same-origin'
     })
     .then(response => {
         console.log('📡 Respuesta recibida - Status:', response.status);
         
-        // Verificar que sea JSON
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             console.error('❌ Respuesta no es JSON. Content-Type:', contentType);
@@ -77,14 +153,13 @@ function searchDevices() {
         } else {
             console.error('❌ Error del servidor:', data.message);
             showNotification('Error: ' + (data.message || 'Error desconocido'), 'danger');
-            renderDevices([]); // Mostrar mensaje de sin resultados
+            renderDevices([]);
         }
     })
     .catch(error => {
         console.error('❌ Error en búsqueda:', error);
         showNotification('Error de conexión. Por favor intenta de nuevo.', 'danger');
         
-        // Mostrar mensaje de error en el contenedor
         const container = document.getElementById('devicesList');
         if (container) {
             container.innerHTML = `
@@ -121,7 +196,7 @@ function clearDeviceSearch() {
     
     if (searchInput) {
         searchInput.value = '';
-        searchInput.focus(); // Mantener el foco
+        searchInput.focus();
     }
     
     if (clearBtn) {
@@ -132,7 +207,6 @@ function clearDeviceSearch() {
         searchInfo.textContent = '';
     }
     
-    // Mostrar mensaje inicial
     if (container) {
         container.innerHTML = `
             <div class="col-span-full text-center py-16">
@@ -254,12 +328,10 @@ function createDeviceCard(device, index) {
 
 function attachDeviceCardListeners() {
     document.querySelectorAll('.device-card').forEach(card => {
-        // Click
         card.addEventListener('click', function() {
             handleDeviceSelection(this);
         });
         
-        // Enter en teclado
         card.addEventListener('keypress', function(e) {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
@@ -289,13 +361,11 @@ function selectDeviceForSale(device) {
     selectedDevice = device;
     console.log('✅ Dispositivo seleccionado:', device.modelo);
     
-    // Limpiar selección previa
     document.querySelectorAll('.device-card').forEach(el => {
         el.classList.remove('selected');
         el.setAttribute('aria-selected', 'false');
     });
     
-    // Marcar tarjeta seleccionada
     const selectedCard = document.querySelector(`[data-device-id="${device.id}"]`);
     if (selectedCard) {
         selectedCard.classList.add('selected');
@@ -303,7 +373,6 @@ function selectDeviceForSale(device) {
         selectedCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     
-    // Llenar información del dispositivo
     document.getElementById('selectedDeviceId').value = device.id;
     document.getElementById('deviceName').textContent = device.modelo;
     document.getElementById('deviceDetails').textContent = 
@@ -311,10 +380,8 @@ function selectDeviceForSale(device) {
     document.getElementById('devicePrice').textContent = 'S/ ' + formatPrice(device.precio);
     document.getElementById('deviceInfo').classList.remove('hidden');
     
-    // Pre-llenar precio
     document.getElementById('precio_venta').value = device.precio;
     
-    // Abrir modal
     openSaleModal();
 }
 
@@ -337,7 +404,6 @@ function openSaleModal() {
         modal.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
         
-        // Focus en primer campo después de animación
         setTimeout(() => {
             const nombreInput = document.getElementById('cliente_nombre');
             if (nombreInput) nombreInput.focus();
@@ -363,7 +429,6 @@ function clearSaleForm() {
         form.reset();
     }
     
-    // Limpiar campos específicos
     const fields = ['cliente_nombre', 'cliente_telefono', 'cliente_email', 'precio_venta', 'notas'];
     fields.forEach(fieldId => {
         const field = document.getElementById(fieldId);
@@ -373,7 +438,6 @@ function clearSaleForm() {
         }
     });
     
-    // Resetear método de pago
     const metodoPago = document.getElementById('metodo_pago');
     if (metodoPago) {
         metodoPago.value = 'efectivo';
@@ -394,7 +458,6 @@ function registerSale() {
     const cliente_nombre = document.getElementById('cliente_nombre').value.trim();
     const precio_venta = parseFloat(document.getElementById('precio_venta').value);
     
-    // Validaciones
     if (!cliente_nombre) {
         showNotification('Por favor ingresa el nombre del cliente', 'warning');
         document.getElementById('cliente_nombre').focus();
@@ -407,14 +470,12 @@ function registerSale() {
         return false;
     }
     
-    // Confirmar venta
     const confirmMessage = `¿Confirmar venta?\n\nDispositivo: ${selectedDevice.modelo}\nCliente: ${cliente_nombre}\nPrecio: S/ ${precio_venta.toFixed(2)}`;
     
     if (!confirm(confirmMessage)) {
         return false;
     }
     
-    // Preparar datos
     const formData = new FormData();
     formData.append('action', 'register_sale');
     formData.append('celular_id', selectedDevice.id);
@@ -425,14 +486,11 @@ function registerSale() {
     formData.append('metodo_pago', document.getElementById('metodo_pago').value);
     formData.append('notas', document.getElementById('notas').value);
     
-    // Deshabilitar botones
     const buttons = document.querySelectorAll('#saleForm button');
     buttons.forEach(btn => btn.disabled = true);
     
-    // Mostrar loading
     showLoading();
     
-    // Enviar
     fetch('sales.php', {
         method: 'POST',
         body: formData,
@@ -566,13 +624,11 @@ function hideLoading() {
 }
 
 function showNotification(message, type) {
-    // Usar el sistema de notificaciones de common.js si está disponible
     if (window.showNotification && typeof window.showNotification === 'function') {
         window.showNotification(message, type);
         return;
     }
     
-    // Fallback: crear notificación simple
     const colors = {
         'success': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
         'danger': 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
@@ -590,31 +646,14 @@ function showNotification(message, type) {
     
     document.body.appendChild(notification);
     
-    // Animación de entrada
     requestAnimationFrame(() => {
         notification.style.transform = 'translateX(0)';
     });
     
-    // Auto-cerrar
     setTimeout(() => {
         notification.style.transform = 'translateX(120%)';
         setTimeout(() => notification.remove(), 300);
     }, 4000);
-}
-
-// ==========================================
-// UTILIDADES
-// ==========================================
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function formatPrice(price) {
-    const num = parseFloat(price);
-    return isNaN(num) ? '0.00' : num.toFixed(2);
 }
 
 // ==========================================
@@ -623,17 +662,14 @@ function formatPrice(price) {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Sistema de Ventas Cargado - Moneda: Soles (S/)');
     
-    // Búsqueda con delay
     const searchInput = document.getElementById('deviceSearch');
     if (searchInput) {
-        // Event listener para escritura
         searchInput.addEventListener('input', function(e) {
-            e.preventDefault(); // CRÍTICO: Prevenir cualquier submit
+            e.preventDefault();
             
             clearTimeout(searchTimeout);
             const value = this.value.trim();
             
-            // Mostrar/ocultar botón limpiar
             const clearBtn = document.getElementById('clearSearchBtn');
             if (clearBtn) {
                 if (value) {
@@ -643,22 +679,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            // Búsqueda con delay
             searchTimeout = setTimeout(() => searchDevices(), 500);
         });
         
-        // Enter en búsqueda - CRÍTICO: Prevenir submit
         searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                e.preventDefault(); // CRÍTICO: Evitar submit del formulario
-                e.stopPropagation(); // Evitar propagación
+                e.preventDefault();
+                e.stopPropagation();
                 clearTimeout(searchTimeout);
                 searchDevices();
-                return false; // Seguridad adicional
+                return false;
             }
         });
         
-        // Prevenir submit en keydown también
         searchInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -666,12 +699,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Prevenir zoom en iOS al hacer focus
         searchInput.addEventListener('focus', function() {
             console.log('🔍 Buscador activado');
         });
         
-        // Ctrl + F para búsqueda (solo desktop)
         if (window.innerWidth > 768) {
             document.addEventListener('keydown', function(e) {
                 if (e.ctrlKey && e.key === 'f') {
@@ -684,18 +715,16 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('❌ No se encontró el input de búsqueda #deviceSearch');
     }
     
-    // Botón de limpiar búsqueda
     const clearBtn = document.getElementById('clearSearchBtn');
     if (clearBtn) {
         clearBtn.addEventListener('click', function(e) {
-            e.preventDefault(); // CRÍTICO: Prevenir cualquier acción por defecto
+            e.preventDefault();
             e.stopPropagation();
             clearDeviceSearch();
             return false;
         });
     }
     
-    // Cerrar modal con Escape
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             const modal = document.getElementById('saleModal');
@@ -705,7 +734,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Cerrar modal al hacer clic en el fondo
     const modal = document.getElementById('saleModal');
     if (modal) {
         modal.addEventListener('click', function(e) {
@@ -715,75 +743,4 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Validación de precio
-    const precioInput = document.getElementById('precio_venta');
-    if (precioInput) {
-        precioInput.addEventListener('input', function() {
-            let value = parseFloat(this.value);
-            
-            if (isNaN(value) || value < 0) {
-                this.value = 0;
-            }
-        });
-        
-        // Validar al salir del campo
-        precioInput.addEventListener('blur', function() {
-            const value = parseFloat(this.value);
-            if (isNaN(value) || value <= 0) {
-                this.classList.add('is-invalid');
-            } else {
-                this.classList.remove('is-invalid');
-                this.classList.add('is-valid');
-            }
-        });
-    }
-    
-    // Sugerencia de email
-    const nombreInput = document.getElementById('cliente_nombre');
-    const emailField = document.getElementById('cliente_email');
-    if (nombreInput && emailField) {
-        nombreInput.addEventListener('blur', function() {
-            const nombre = this.value.trim();
-            
-            if (nombre && !emailField.value) {
-                const nombreLimpio = nombre.toLowerCase()
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '')
-                    .replace(/\s+/g, '.')
-                    .replace(/[^a-z0-9.]/g, '');
-                
-                emailField.placeholder = `Ej: ${nombreLimpio}@ejemplo.com`;
-            }
-        });
-    }
-    
-    // Prevenir submit del form
-    const saleForm = document.getElementById('saleForm');
-    if (saleForm) {
-        saleForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            registerSale();
-            return false;
-        });
-    }
-    
-    // Touch feedback para móvil
-    if ('ontouchstart' in window) {
-        document.body.classList.add('touch-device');
-        console.log('📱 Dispositivo táctil detectado');
-    }
-    
-    // Logs informativos
-    console.log('💡 Atajos: Ctrl+F (Buscar) | Esc (Cerrar modal)');
-    console.log('🔍 Escribe en el buscador para encontrar dispositivos');
-    
-    if (window.SALES_CONFIG) {
-        console.log('📊 Configuración:', {
-            disponibles: window.SALES_CONFIG.disponibles,
-            ventasHoy: window.SALES_CONFIG.ventasHoy
-        });
-    }
-    
-    console.log('🚀 Sistema completamente inicializado');
-});
+    const

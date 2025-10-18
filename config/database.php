@@ -2,16 +2,13 @@
 /**
  * Configuración de Base de Datos - PROTEGIDA CON .ENV
  * Sistema de Inventario de Celulares
- * 
- * IMPORTANTE: Las credenciales están en /.env (fuera del repositorio)
- * VERSIÓN CORREGIDA - Sin errores
+ * VERSIÓN CORREGIDA - Sin función env() duplicada
  */
 
 // ===================================================================
 // CARGAR VARIABLES DE ENTORNO
 // ===================================================================
 
-// Detectar ruta base del proyecto
 $projectRoot = dirname(__DIR__);
 
 // OPCIÓN A: Con Composer (si instalaste vlucas/phpdotenv)
@@ -19,7 +16,7 @@ if (file_exists($projectRoot . '/vendor/autoload.php')) {
     require_once $projectRoot . '/vendor/autoload.php';
     
     $dotenv = Dotenv\Dotenv::createImmutable($projectRoot);
-    $dotenv->safeLoad(); // No falla si .env no existe
+    $dotenv->safeLoad();
     
 } 
 // OPCIÓN B: Con SimpleDotenv (sin Composer)
@@ -31,10 +28,13 @@ else if (file_exists(__DIR__ . '/../includes/dotenv.php')) {
 }
 
 // ===================================================================
-// DEFINIR FUNCIÓN env() SI NO EXISTE
+// ✅ CORREGIDO: La función env() ahora solo está en dotenv.php
+// No se redefine aquí para evitar duplicación
 // ===================================================================
 
+// Verificar que env() esté disponible
 if (!function_exists('env')) {
+    // Si por alguna razón no se cargó dotenv.php, definir una versión básica
     function env($key, $default = null) {
         $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
         
@@ -42,7 +42,6 @@ if (!function_exists('env')) {
             return $default;
         }
         
-        // Convertir strings booleanos
         switch (strtolower($value)) {
             case 'true':
             case '(true)':
@@ -89,7 +88,7 @@ define('DEVELOPMENT_MODE', env('APP_ENV', 'production') === 'development');
 date_default_timezone_set(TIMEZONE);
 
 // ===================================================================
-// FUNCIONES AUXILIARES GLOBALES (DEFINIR ANTES DE USAR)
+// FUNCIONES AUXILIARES GLOBALES
 // ===================================================================
 
 if (!function_exists('logError')) {
@@ -137,7 +136,6 @@ class Database {
             $this->connection = new PDO($dsn, DB_USER, DB_PASS, $options);
             
         } catch (PDOException $exception) {
-            // NO mostrar el error completo en producción
             $errorMessage = "[" . date('Y-m-d H:i:s') . "] Error de conexión a BD\n";
             
             if (DEVELOPMENT_MODE || env('APP_DEBUG') === true) {
@@ -147,8 +145,6 @@ class Database {
             }
             
             logError($errorMessage);
-            
-            // Mensaje genérico para el usuario
             die("⚠️ Error al conectar con la base de datos. Por favor contacta al administrador.");
         }
     }
@@ -164,10 +160,8 @@ class Database {
         return $this->connection;
     }
     
-    // Prevenir clonación
     private function __clone() {}
     
-    // Prevenir deserialización
     public function __wakeup() {
         throw new Exception("Cannot unserialize singleton");
     }
@@ -194,7 +188,6 @@ if (!function_exists('setSecurityHeaders')) {
         header('Referrer-Policy: same-origin');
         header("Permissions-Policy: geolocation=(), microphone=()");
         
-        // CSP básico
         if (env('APP_ENV') === 'production') {
             header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com");
         }
@@ -212,7 +205,7 @@ if (!function_exists('startSecureSession')) {
                 'cookie_secure' => $isSecure,
                 'use_strict_mode' => true,
                 'cookie_samesite' => 'Lax',
-                'gc_maxlifetime' => 3600 // 1 hora
+                'gc_maxlifetime' => 3600
             ]);
         }
     }
@@ -231,7 +224,6 @@ if (!function_exists('sanitize')) {
 // VERIFICACIÓN DE SEGURIDAD AL CARGAR
 // ===================================================================
 
-// Solo en desarrollo: mostrar si .env se cargó correctamente
 if (env('APP_DEBUG') === true && php_sapi_name() === 'cli') {
     echo "✅ Configuración cargada correctamente\n";
     echo "   - DB_HOST: " . DB_HOST . "\n";
@@ -241,7 +233,6 @@ if (env('APP_DEBUG') === true && php_sapi_name() === 'cli') {
     echo "   - DEVELOPMENT_MODE: " . (DEVELOPMENT_MODE ? 'true' : 'false') . "\n";
 }
 
-// Log de inicialización exitosa
 if (function_exists('logError')) {
     logError("Sistema inicializado correctamente - Entorno: " . env('APP_ENV', 'production'));
 }

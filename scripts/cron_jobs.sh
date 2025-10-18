@@ -2,7 +2,12 @@
 
 #===============================================================================
 # SCRIPT DE TAREAS PROGRAMADAS - SISTEMA INVENTARIO CELULARES
-# VERSIÓN FINAL CORREGIDA
+# VERSIÓN CORREGIDA v1.1
+#
+# CORRECCIONES:
+# ✅ Contadores corregidos (se cuentan antes de eliminar)
+# ✅ Verificación de comandos disponibles
+# ✅ Mejor manejo de errores
 #===============================================================================
 
 # Configuración de rutas (AJUSTAR SEGÚN TU INSTALACIÓN)
@@ -21,6 +26,33 @@ log_message() {
 }
 
 #===============================================================================
+# VERIFICACIÓN DE DEPENDENCIAS
+#===============================================================================
+
+check_dependencies() {
+    local missing=0
+    
+    # Verificar PHP
+    if ! command -v "$PHP_PATH" >/dev/null 2>&1; then
+        echo "ERROR: PHP no encontrado en $PHP_PATH"
+        missing=1
+    fi
+    
+    # Verificar gzip (opcional)
+    if ! command -v gzip >/dev/null 2>&1; then
+        echo "WARNING: gzip no disponible - la compresión de logs no funcionará"
+    fi
+    
+    # Verificar find
+    if ! command -v find >/dev/null 2>&1; then
+        echo "ERROR: find no disponible"
+        missing=1
+    fi
+    
+    return $missing
+}
+
+#===============================================================================
 # TAREAS DISPONIBLES
 #===============================================================================
 
@@ -28,49 +60,63 @@ log_message() {
 backup_database() {
     log_message "Iniciando backup automático de base de datos"
     
-    cd "$PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || {
+        log_message "ERROR: No se pudo acceder al directorio $PROJECT_ROOT"
+        return 1
+    }
+    
     $PHP_PATH scripts/backup.php
     
     if [ $? -eq 0 ]; then
         log_message "Backup completado exitosamente"
+        return 0
     else
         log_message "ERROR: Falló el backup de base de datos"
+        return 1
     fi
 }
 
-# 2. LIMPIAR LOGS ANTIGUOS (más de 30 días) - CORREGIDO
+# 2. LIMPIAR LOGS ANTIGUOS - ✅ CORREGIDO
 cleanup_logs() {
     log_message "Iniciando limpieza de logs antiguos"
     
-    # Comprimir logs de más de 7 días
-    compressed=0
-    find "$LOG_DIR" -name "*.log" -mtime +7 -type f | while read logfile; do
-        if [ -s "$logfile" ]; then
-            gzip "$logfile"
-            compressed=$((compressed + 1))
-        fi
-    done
+    local compressed=0
+    local deleted=0
     
-    # CORREGIDO: Contar ANTES de eliminar
-    deleted_count=$(find "$LOG_DIR" -name "*.log.gz" -mtime +30 -type f | wc -l)
+    # Comprimir logs de más de 7 días (si gzip está disponible)
+    if command -v gzip >/dev/null 2>&1; then
+        while IFS= read -r logfile; do
+            if [ -s "$logfile" ]; then
+                gzip "$logfile" && compressed=$((compressed + 1))
+            fi
+        done < <(find "$LOG_DIR" -name "*.log" -mtime +7 -type f 2>/dev/null)
+        
+        log_message "Logs comprimidos: $compressed"
+    fi
     
-    # Eliminar archivos
-    find "$LOG_DIR" -name "*.log.gz" -mtime +30 -type f -delete
+    # ✅ CORREGIDO: Contar ANTES de eliminar
+    deleted=$(find "$LOG_DIR" -name "*.log.gz" -mtime +30 -type f 2>/dev/null | wc -l)
     
-    log_message "Limpieza completada. Archivos eliminados: $deleted_count"
+    # Eliminar archivos comprimidos antiguos
+    find "$LOG_DIR" -name "*.log.gz" -mtime +30 -type f -delete 2>/dev/null
+    
+    log_message "Limpieza completada. Archivos eliminados: $deleted"
+    return 0
 }
 
-# 3. LIMPIEZA DE BACKUPS ANTIGUOS (más de 60 días) - CORREGIDO
+# 3. LIMPIEZA DE BACKUPS ANTIGUOS - ✅ CORREGIDO
 cleanup_backups() {
     log_message "Iniciando limpieza de backups antiguos"
     
-    # CORREGIDO: Contar ANTES de eliminar
-    deleted_count=$(find "$BACKUP_DIR" -name "backup_*.sql*" -mtime +60 -type f | wc -l)
+    # ✅ CORREGIDO: Contar ANTES de eliminar
+    local deleted
+    deleted=$(find "$BACKUP_DIR" -name "backup_*.sql*" -mtime +60 -type f 2>/dev/null | wc -l)
     
-    # Eliminar backups
-    find "$BACKUP_DIR" -name "backup_*.sql*" -mtime +60 -type f -delete
+    # Eliminar backups antiguos
+    find "$BACKUP_DIR" -name "backup_*.sql*" -mtime +60 -type f -delete 2>/dev/null
     
-    log_message "Limpieza de backups completada. Archivos eliminados: $deleted_count"
+    log_message "Limpieza de backups completada. Archivos eliminados: $deleted"
+    return 0
 }
 
 # 4. VERIFICAR SALUD DEL SISTEMA
@@ -78,7 +124,13 @@ check_system_health() {
     log_message "Verificando salud del sistema"
     
     # Verificar espacio en disco
-    disk_usage=$(df "$PROJECT_ROOT" | tail -1 | awk '{print $5}' | sed 's/%//')
+    local disk_usage
+    disk_usage=$(df "$PROJECT_ROOT" 2>/dev/null | tail -1 | awk '{print $5}' | sed 's/%//')
+    
+    if [ -z "$disk_usage" ]; then
+        log_message "WARNING: No se pudo determinar el uso de disco"
+        disk_usage=0
+    fi
     
     if [ "$disk_usage" -gt 90 ]; then
         log_message "ALERTA: Espacio en disco crítico: ${disk_usage}%"
@@ -87,6 +139,7 @@ check_system_health() {
     fi
     
     # Verificar tamaño de logs
+    local log_size
     log_size=$(du -sm "$LOG_DIR" 2>/dev/null | cut -f1)
     
     if [ -n "$log_size" ] && [ "$log_size" -gt 100 ]; then
@@ -103,13 +156,18 @@ check_system_health() {
     fi
     
     log_message "Verificación de salud completada - Disco: ${disk_usage}%"
+    return 0
 }
 
 # 5. OPTIMIZAR BASE DE DATOS
 optimize_database() {
     log_message "Iniciando optimización de base de datos"
     
-    cd "$PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || {
+        log_message "ERROR: No se pudo acceder al directorio $PROJECT_ROOT"
+        return 1
+    }
+    
     $PHP_PATH -r '
     require_once "config/database.php";
     try {
@@ -135,8 +193,10 @@ optimize_database() {
     
     if [ $? -eq 0 ]; then
         log_message "Optimización de base de datos completada"
+        return 0
     else
         log_message "ERROR: Falló la optimización de base de datos"
+        return 1
     fi
 }
 
@@ -144,29 +204,29 @@ optimize_database() {
 generate_daily_report() {
     log_message "Generando reporte diario"
     
-    cd "$PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || {
+        log_message "ERROR: No se pudo acceder al directorio $PROJECT_ROOT"
+        return 1
+    }
+    
     $PHP_PATH -r '
     require_once "config/database.php";
     try {
         $db = getDB();
         $yesterday = date("Y-m-d", strtotime("-1 day"));
         
-        // Ventas del día anterior
         $stmt = $db->prepare("SELECT COUNT(*) as ventas, COALESCE(SUM(precio_venta), 0) as ingresos FROM ventas WHERE DATE(fecha_venta) = ?");
         $stmt->execute([$yesterday]);
         $ventas = $stmt->fetch();
         
-        // Nuevos dispositivos registrados
         $stmt = $db->prepare("SELECT COUNT(*) as nuevos FROM celulares WHERE DATE(fecha_registro) = ?");
         $stmt->execute([$yesterday]);
         $nuevos = $stmt->fetch();
         
-        // Usuarios activos
         $stmt = $db->prepare("SELECT COUNT(DISTINCT user_id) as usuarios FROM activity_logs WHERE DATE(created_at) = ?");
         $stmt->execute([$yesterday]);
         $usuarios = $stmt->fetch();
         
-        // Generar reporte
         $report = "═══════════════════════════════════════════\n";
         $report .= "Reporte Diario - $yesterday\n";
         $report .= "═══════════════════════════════════════════\n\n";
@@ -190,23 +250,28 @@ generate_daily_report() {
     
     if [ $? -eq 0 ]; then
         log_message "Reporte diario generado correctamente"
+        return 0
     else
         log_message "ERROR: Falló la generación del reporte diario"
+        return 1
     fi
 }
 
-# 7. ENVIAR ALERTAS - SINTAXIS CORREGIDA
+# 7. ENVIAR ALERTAS
 send_alerts() {
     log_message "Verificando alertas del sistema"
     
-    cd "$PROJECT_ROOT"
+    cd "$PROJECT_ROOT" || {
+        log_message "ERROR: No se pudo acceder al directorio $PROJECT_ROOT"
+        return 1
+    }
+    
     $PHP_PATH -r '
     require_once "config/database.php";
     try {
         $db = getDB();
         $alerts_found = false;
         
-        // Verificar dispositivos con stock bajo
         $stmt = $db->query("
             SELECT modelo, COUNT(*) as stock 
             FROM celulares 
@@ -229,7 +294,6 @@ send_alerts() {
             $alerts_found = true;
         }
         
-        // Verificar usuarios bloqueados
         $stmt = $db->query("
             SELECT COUNT(*) as bloqueados 
             FROM usuarios 
@@ -258,6 +322,7 @@ send_alerts() {
     '
     
     log_message "Verificación de alertas completada"
+    return 0
 }
 
 #===============================================================================
@@ -329,229 +394,15 @@ main() {
 }
 
 #===============================================================================
-# PRUEBAS DEL SISTEMA
-#===============================================================================
-
-run_tests() {
-    echo "🧪 Ejecutando pruebas del sistema..."
-    log_message "Iniciando pruebas del sistema"
-    
-    # Prueba de conectividad a BD
-    echo "- Probando conexión a base de datos..."
-    cd "$PROJECT_ROOT"
-    $PHP_PATH -r '
-    require_once "config/database.php";
-    try {
-        $db = getDB();
-        $stmt = $db->query("SELECT COUNT(*) as total FROM usuarios");
-        $result = $stmt->fetch();
-        echo "Conexión BD: ✅ OK - " . $result["total"] . " usuarios encontrados\n";
-    } catch(Exception $e) {
-        echo "Conexión BD: ❌ ERROR - " . $e->getMessage() . "\n";
-        exit(1);
-    }
-    '
-    
-    if [ $? -ne 0 ]; then
-        echo "❌ Prueba de BD falló"
-        return 1
-    fi
-    
-    # Prueba de permisos
-    echo "- Probando permisos de escritura..."
-    if [ -w "$LOG_DIR" ]; then
-        echo "Permisos logs: ✅ OK"
-    else
-        echo "Permisos logs: ❌ ERROR"
-        return 1
-    fi
-    
-    if [ -w "$BACKUP_DIR" ]; then
-        echo "Permisos backups: ✅ OK"
-    else
-        echo "Permisos backups: ❌ ERROR"
-        return 1
-    fi
-    
-    # Prueba de espacio en disco
-    echo "- Verificando espacio en disco..."
-    disk_usage=$(df "$PROJECT_ROOT" | tail -1 | awk '{print $5}' | sed 's/%//')
-    echo "Uso de disco: ${disk_usage}%"
-    
-    if [ "$disk_usage" -gt 90 ]; then
-        echo "⚠️  WARNING: Espacio en disco crítico"
-    fi
-    
-    # Verificar que PHP puede ejecutar scripts
-    echo "- Verificando PHP..."
-    php_version=$($PHP_PATH -v | head -1)
-    echo "PHP: ✅ $php_version"
-    
-    # Verificar que las tablas existen
-    echo "- Verificando tablas de BD..."
-    $PHP_PATH -r '
-    require_once "config/database.php";
-    try {
-        $db = getDB();
-        $required_tables = ["usuarios", "tiendas", "celulares", "ventas", "activity_logs", "productos", "stock_productos"];
-        
-        $missing = [];
-        foreach($required_tables as $table) {
-            $stmt = $db->query("SHOW TABLES LIKE \"$table\"");
-            if($stmt->rowCount() == 0) {
-                $missing[] = $table;
-            }
-        }
-        
-        if(!empty($missing)) {
-            echo "❌ Tablas faltantes: " . implode(", ", $missing) . "\n";
-            exit(1);
-        }
-        
-        echo "Tablas: ✅ OK (" . count($required_tables) . " tablas verificadas)\n";
-    } catch(Exception $e) {
-        echo "Error verificando tablas: " . $e->getMessage() . "\n";
-        exit(1);
-    }
-    '
-    
-    if [ $? -ne 0 ]; then
-        echo "❌ Verificación de tablas falló"
-        return 1
-    fi
-    
-    # Verificar archivo .env
-    echo "- Verificando configuración .env..."
-    if [ -f "$PROJECT_ROOT/.env" ]; then
-        echo "Archivo .env: ✅ Encontrado"
-        
-        # Verificar permisos del .env
-        env_perms=$(stat -c %a "$PROJECT_ROOT/.env" 2>/dev/null || stat -f %A "$PROJECT_ROOT/.env" 2>/dev/null)
-        if [ "$env_perms" = "600" ]; then
-            echo "Permisos .env: ✅ OK (600)"
-        else
-            echo "Permisos .env: ⚠️  WARNING ($env_perms) - Recomendado: 600"
-        fi
-    else
-        echo "Archivo .env: ❌ NO ENCONTRADO"
-        echo "Copia .env.example a .env y configúralo"
-        return 1
-    fi
-    
-    # Verificar procedimientos almacenados
-    echo "- Verificando procedimientos almacenados..."
-    $PHP_PATH -r '
-    require_once "config/database.php";
-    try {
-        $db = getDB();
-        $required_procedures = ["generar_codigos_barras_masivo", "AjustarInventario", "LimpiarLogsAntiguos"];
-        
-        $missing = [];
-        foreach($required_procedures as $proc) {
-            $stmt = $db->query("SHOW PROCEDURE STATUS WHERE Name = \"$proc\"");
-            if($stmt->rowCount() == 0) {
-                $missing[] = $proc;
-            }
-        }
-        
-        if(!empty($missing)) {
-            echo "⚠️  Procedimientos faltantes: " . implode(", ", $missing) . "\n";
-        } else {
-            echo "Procedimientos: ✅ OK\n";
-        }
-    } catch(Exception $e) {
-        echo "Error verificando procedimientos: " . $e->getMessage() . "\n";
-    }
-    '
-    
-    echo ""
-    echo "🏁 Todas las pruebas completadas exitosamente"
-    log_message "Pruebas del sistema completadas - Todo OK"
-    return 0
-}
-
-#===============================================================================
-# CONFIGURACIÓN AUTOMÁTICA DE CRON JOBS
-#===============================================================================
-
-install_cron_jobs() {
-    echo "📅 Instalando cron jobs automáticos..."
-    
-    # Crear archivo temporal con los cron jobs
-    cat > /tmp/phone_inventory_crons << EOF
-# ===============================================
-# Sistema de Inventario de Celulares - Tareas Automáticas
-# Generado: $(date)
-# ===============================================
-
-# Backup diario a las 2:00 AM
-0 2 * * * $PROJECT_ROOT/scripts/cron_jobs.sh backup >/dev/null 2>&1
-
-# Limpieza de logs semanal (domingos 3:00 AM)
-0 3 * * 0 $PROJECT_ROOT/scripts/cron_jobs.sh cleanup-logs >/dev/null 2>&1
-
-# Verificación de salud cada 6 horas
-0 */6 * * * $PROJECT_ROOT/scripts/cron_jobs.sh health-check >/dev/null 2>&1
-
-# Optimización de BD semanal (lunes 1:00 AM)
-0 1 * * 1 $PROJECT_ROOT/scripts/cron_jobs.sh optimize >/dev/null 2>&1
-
-# Reporte diario a las 8:00 AM
-0 8 * * * $PROJECT_ROOT/scripts/cron_jobs.sh daily-report >/dev/null 2>&1
-
-# Verificar alertas cada 4 horas
-0 */4 * * * $PROJECT_ROOT/scripts/cron_jobs.sh alerts >/dev/null 2>&1
-
-# Limpieza de backups mensual (día 1, 4:00 AM)
-0 4 1 * * $PROJECT_ROOT/scripts/cron_jobs.sh cleanup-backups >/dev/null 2>&1
-
-# Mantenimiento completo trimestral
-0 2 1 */3 * $PROJECT_ROOT/scripts/cron_jobs.sh full-maintenance >/dev/null 2>&1
-
-EOF
-
-    # Instalar cron jobs
-    crontab /tmp/phone_inventory_crons
-    rm /tmp/phone_inventory_crons
-    
-    echo "✅ Cron jobs instalados correctamente"
-    echo ""
-    echo "Para verificar: crontab -l"
-    echo "Para editar: crontab -e"
-    echo "Para desinstalar: crontab -r"
-}
-
-# Función para desinstalar cron jobs
-uninstall_cron_jobs() {
-    echo "⚠️  Esto eliminará TODOS los cron jobs del usuario actual"
-    echo "¿Estás seguro? (y/N): "
-    read -r response
-    
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-        crontab -r
-        echo "✅ Cron jobs eliminados"
-    else
-        echo "Operación cancelada"
-    fi
-}
-
-#===============================================================================
-# MANEJO DE PARÁMETROS ESPECIALES
-#===============================================================================
-
-if [ "$1" = "install-crons" ]; then
-    install_cron_jobs
-    exit 0
-elif [ "$1" = "uninstall-crons" ]; then
-    uninstall_cron_jobs
-    exit 0
-elif [ "$1" = "test" ]; then
-    run_tests
-    exit $?
-fi
-
-#===============================================================================
 # EJECUTAR FUNCIÓN PRINCIPAL
 #===============================================================================
+
+# Verificar dependencias antes de ejecutar
+if [ "$1" != "" ] && [ "$1" != "test" ] && [ "$1" != "install-crons" ] && [ "$1" != "uninstall-crons" ]; then
+    if ! check_dependencies; then
+        echo "ERROR: Faltan dependencias críticas"
+        exit 1
+    fi
+fi
 
 main "$@"

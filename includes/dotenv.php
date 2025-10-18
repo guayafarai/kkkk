@@ -2,10 +2,12 @@
 /**
  * DOTENV SIMPLE - Sin dependencias
  * Para HostingPlatino sin Composer
- * VERSIÓN 2.0 CORREGIDA
- * - Validación de nombres de variables
- * - Mejor manejo de errores
- * - Seguridad mejorada
+ * VERSIÓN 2.1 CORREGIDA
+ * 
+ * CORRECCIONES:
+ * ✅ Validación de nombres de variables permite minúsculas
+ * ✅ Mejor manejo de errores
+ * ✅ Seguridad mejorada
  */
 
 class SimpleDotenv {
@@ -59,7 +61,7 @@ class SimpleDotenv {
             $name = trim($name);
             $value = trim($value);
 
-            // VALIDAR NOMBRE DE VARIABLE (solo letras mayúsculas, números y guiones bajos)
+            // ✅ CORREGIDO: Validación permite mayúsculas, minúsculas y guiones bajos
             if (!$this->isValidVariableName($name)) {
                 $this->errors[] = "Línea " . ($lineNumber + 1) . ": Nombre de variable inválido '$name'";
                 continue;
@@ -108,12 +110,14 @@ class SimpleDotenv {
     }
     
     /**
-     * Validar nombre de variable de entorno
+     * ✅ CORREGIDO: Validar nombre de variable de entorno
+     * Ahora permite mayúsculas, minúsculas, números y guiones bajos
      */
     private function isValidVariableName($name) {
-        // Solo letras mayúsculas, números y guiones bajos
+        // Permite mayúsculas, minúsculas y guiones bajos
         // Debe empezar con letra o guion bajo
-        return preg_match('/^[A-Z_][A-Z0-9_]*$/', $name) === 1;
+        // Acepta tanto APP_ENV como app_env
+        return preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) === 1;
     }
 
     /**
@@ -180,16 +184,27 @@ class SimpleDotenv {
     }
 }
 
-// Función helper para obtener variables (solo si no existe)
+/**
+ * Función helper para obtener variables de entorno
+ * Solo se define si no existe previamente
+ */
 if (!function_exists('env')) {
+    /**
+     * Obtener valor de variable de entorno
+     * 
+     * @param string $key Nombre de la variable
+     * @param mixed $default Valor por defecto si no existe
+     * @return mixed
+     */
     function env($key, $default = null) {
+        // Buscar en $_ENV, $_SERVER y getenv() en ese orden
         $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
         
         if ($value === false) {
             return $default;
         }
         
-        // Convertir strings booleanos
+        // Convertir strings booleanos a valores reales
         switch (strtolower($value)) {
             case 'true':
             case '(true)':
