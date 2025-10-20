@@ -1,40 +1,23 @@
 <?php
 /**
- * Configuración de Base de Datos - PROTEGIDA CON .ENV
+ * Configuración de Base de Datos
  * Sistema de Inventario de Celulares
- * VERSIÓN CORREGIDA - Sin función env() duplicada
  */
 
-// ===================================================================
-// CARGAR VARIABLES DE ENTORNO
-// ===================================================================
-
+// Cargar variables de entorno
 $projectRoot = dirname(__DIR__);
 
-// OPCIÓN A: Con Composer (si instalaste vlucas/phpdotenv)
 if (file_exists($projectRoot . '/vendor/autoload.php')) {
     require_once $projectRoot . '/vendor/autoload.php';
-    
     $dotenv = Dotenv\Dotenv::createImmutable($projectRoot);
     $dotenv->safeLoad();
-    
-} 
-// OPCIÓN B: Con SimpleDotenv (sin Composer)
-else if (file_exists(__DIR__ . '/../includes/dotenv.php')) {
+} else if (file_exists(__DIR__ . '/../includes/dotenv.php')) {
     require_once __DIR__ . '/../includes/dotenv.php';
-    
     $dotenv = SimpleDotenv::createImmutable($projectRoot);
     $dotenv->safeLoad();
 }
 
-// ===================================================================
-// ✅ CORREGIDO: La función env() ahora solo está en dotenv.php
-// No se redefine aquí para evitar duplicación
-// ===================================================================
-
-// Verificar que env() esté disponible
 if (!function_exists('env')) {
-    // Si por alguna razón no se cargó dotenv.php, definir una versión básica
     function env($key, $default = null) {
         $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
         
@@ -61,36 +44,24 @@ if (!function_exists('env')) {
     }
 }
 
-// ===================================================================
-// CONFIGURACIÓN SEGURA - USA VARIABLES DE ENTORNO
-// ===================================================================
-
-// Base de datos
+// Configuración de base de datos
 define('DB_HOST', env('DB_HOST', 'localhost'));
 define('DB_NAME', env('DB_NAME', 'chamotvs_ventasdb'));
 define('DB_USER', env('DB_USER', 'chamotvs_ventasuser'));
 define('DB_PASS', env('DB_PASS', ''));
 define('DB_CHARSET', env('DB_CHARSET', 'utf8mb4'));
 
-// Seguridad
+// Sistema
 define('JWT_SECRET', env('JWT_SECRET', 'CHANGE_THIS_SECRET_KEY'));
 define('SESSION_NAME', env('SESSION_NAME', 'phone_inventory_session'));
-
-// Sistema
 define('SYSTEM_NAME', env('SYSTEM_NAME', 'Mobile Service'));
 define('SYSTEM_VERSION', env('SYSTEM_VERSION', '1.0.0'));
 define('TIMEZONE', env('TIMEZONE', 'America/Lima'));
-
-// Modo desarrollo
 define('DEVELOPMENT_MODE', env('APP_ENV', 'production') === 'development');
 
-// Configurar zona horaria
 date_default_timezone_set(TIMEZONE);
 
-// ===================================================================
-// FUNCIONES AUXILIARES GLOBALES
-// ===================================================================
-
+// Funciones auxiliares
 if (!function_exists('logError')) {
     function logError($message) {
         $logDir = __DIR__ . '/../logs';
@@ -105,20 +76,7 @@ if (!function_exists('logError')) {
     }
 }
 
-// Validación de seguridad
-if (DB_PASS === '' && env('APP_ENV') === 'production') {
-    logError('⚠️ ERROR CRÍTICO: Contraseña de base de datos vacía en producción');
-    die('⚠️ ERROR: Configuración de base de datos incompleta. Verifica el archivo .env');
-}
-
-if (JWT_SECRET === 'CHANGE_THIS_SECRET_KEY') {
-    logError('⚠️ WARNING: JWT_SECRET sin cambiar. Sistema inseguro.');
-}
-
-// ===================================================================
-// CLASE DE CONEXIÓN A BASE DE DATOS
-// ===================================================================
-
+// Clase de base de datos
 class Database {
     private static $instance = null;
     private $connection;
@@ -145,7 +103,7 @@ class Database {
             }
             
             logError($errorMessage);
-            die("⚠️ Error al conectar con la base de datos. Por favor contacta al administrador.");
+            die("⚠️ Error al conectar con la base de datos.");
         }
     }
 
@@ -167,10 +125,6 @@ class Database {
     }
 }
 
-// ===================================================================
-// FUNCIONES AUXILIARES ADICIONALES
-// ===================================================================
-
 if (!function_exists('getDB')) {
     function getDB() {
         return Database::getInstance()->getConnection();
@@ -186,10 +140,10 @@ if (!function_exists('setSecurityHeaders')) {
         header('X-Content-Type-Options: nosniff');
         header('X-XSS-Protection: 1; mode=block');
         header('Referrer-Policy: same-origin');
-        header("Permissions-Policy: geolocation=(), microphone=()");
         
+        // CSP Relajado para permitir CDN
         if (env('APP_ENV') === 'production') {
-            header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com");
+            header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://code.jquery.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self'");
         }
     }
 }
@@ -220,19 +174,9 @@ if (!function_exists('sanitize')) {
     }
 }
 
-// ===================================================================
-// VERIFICACIÓN DE SEGURIDAD AL CARGAR
-// ===================================================================
-
 if (env('APP_DEBUG') === true && php_sapi_name() === 'cli') {
     echo "✅ Configuración cargada correctamente\n";
     echo "   - DB_HOST: " . DB_HOST . "\n";
     echo "   - DB_NAME: " . DB_NAME . "\n";
-    echo "   - DB_USER: " . DB_USER . "\n";
     echo "   - Entorno: " . env('APP_ENV', 'production') . "\n";
-    echo "   - DEVELOPMENT_MODE: " . (DEVELOPMENT_MODE ? 'true' : 'false') . "\n";
-}
-
-if (function_exists('logError')) {
-    logError("Sistema inicializado correctamente - Entorno: " . env('APP_ENV', 'production'));
 }

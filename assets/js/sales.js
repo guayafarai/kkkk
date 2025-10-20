@@ -1,8 +1,10 @@
 /**
  * SALES.JS - Sistema de Ventas de Celulares
- * Versión 8.1 FINAL - CORRECCIONES APLICADAS
+ * Versión 8.2 FINAL - ERRORES DE SINTAXIS CORREGIDOS
  * 
  * CORRECCIONES EN ESTA VERSIÓN:
+ * ✅ Error de sintaxis en línea 90 CORREGIDO
+ * ✅ Función escapeHtml() correctamente implementada
  * ✅ Función formatPrice() agregada y funcional
  * ✅ AJAX funcional sin recargar página
  * ✅ Búsqueda en tiempo real optimizada
@@ -22,72 +24,7 @@ let searchTimeout = null;
 
 function escapeHtml(text) {
     if (!text) return '';
-    const precioInput = document.getElementById('precio_venta');
-    if (precioInput) {
-        precioInput.addEventListener('input', function() {
-            let value = parseFloat(this.value);
-            
-            if (isNaN(value) || value < 0) {
-                this.value = 0;
-            }
-        });
-        
-        precioInput.addEventListener('blur', function() {
-            const value = parseFloat(this.value);
-            if (isNaN(value) || value <= 0) {
-                this.classList.add('is-invalid');
-            } else {
-                this.classList.remove('is-invalid');
-                this.classList.add('is-valid');
-            }
-        });
-    }
-    
-    const nombreInput = document.getElementById('cliente_nombre');
-    const emailField = document.getElementById('cliente_email');
-    if (nombreInput && emailField) {
-        nombreInput.addEventListener('blur', function() {
-            const nombre = this.value.trim();
-            
-            if (nombre && !emailField.value) {
-                const nombreLimpio = nombre.toLowerCase()
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '')
-                    .replace(/\s+/g, '.')
-                    .replace(/[^a-z0-9.]/g, '');
-                
-                emailField.placeholder = `Ej: ${nombreLimpio}@ejemplo.com`;
-            }
-        });
-    }
-    
-    const saleForm = document.getElementById('saleForm');
-    if (saleForm) {
-        saleForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            registerSale();
-            return false;
-        });
-    }
-    
-    if ('ontouchstart' in window) {
-        document.body.classList.add('touch-device');
-        console.log('📱 Dispositivo táctil detectado');
-    }
-    
-    console.log('💡 Atajos: Ctrl+F (Buscar) | Esc (Cerrar modal)');
-    console.log('🔍 Escribe en el buscador para encontrar dispositivos');
-    
-    if (window.SALES_CONFIG) {
-        console.log('📊 Configuración:', {
-            disponibles: window.SALES_CONFIG.disponibles,
-            ventasHoy: window.SALES_CONFIG.ventasHoy
-        });
-    }
-    
-    console.log('🚀 Sistema completamente inicializado');
-}); div = document.createElement('div');
+    const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
@@ -743,4 +680,70 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    const
+    const precioInput = document.getElementById('precio_venta');
+    if (precioInput) {
+        precioInput.addEventListener('input', function() {
+            let value = parseFloat(this.value);
+            
+            if (isNaN(value) || value < 0) {
+                this.value = 0;
+            }
+        });
+        
+        precioInput.addEventListener('blur', function() {
+            const value = parseFloat(this.value);
+            if (isNaN(value) || value <= 0) {
+                this.classList.add('is-invalid');
+            } else {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            }
+        });
+    }
+    
+    const nombreInput = document.getElementById('cliente_nombre');
+    const emailField = document.getElementById('cliente_email');
+    if (nombreInput && emailField) {
+        nombreInput.addEventListener('blur', function() {
+            const nombre = this.value.trim();
+            
+            if (nombre && !emailField.value) {
+                const nombreLimpio = nombre.toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/\s+/g, '.')
+                    .replace(/[^a-z0-9.]/g, '');
+                
+                emailField.placeholder = `Ej: ${nombreLimpio}@ejemplo.com`;
+            }
+        });
+    }
+    
+    const saleForm = document.getElementById('saleForm');
+    if (saleForm) {
+        saleForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            registerSale();
+            return false;
+        });
+    }
+    
+    if ('ontouchstart' in window) {
+        document.body.classList.add('touch-device');
+        console.log('📱 Dispositivo táctil detectado');
+    }
+    
+    console.log('💡 Atajos: Ctrl+F (Buscar) | Esc (Cerrar modal)');
+    console.log('🔍 Escribe en el buscador para encontrar dispositivos');
+    
+    if (window.SALES_CONFIG) {
+        console.log('📊 Configuración:', {
+            disponibles: window.SALES_CONFIG.disponibles,
+            ventasHoy: window.SALES_CONFIG.ventasHoy
+        });
+    }
+    
+    console.log('🚀 Sistema completamente inicializado');
+});
+    
