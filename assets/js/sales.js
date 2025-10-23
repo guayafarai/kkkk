@@ -1,15 +1,14 @@
 /**
  * SALES.JS - Sistema de Ventas de Celulares
- * Versión 8.2 FINAL - ERRORES DE SINTAXIS CORREGIDOS
+ * Versión 9.0 FINAL - BÚSQUEDA OPTIMIZADA
  * 
  * CORRECCIONES EN ESTA VERSIÓN:
- * ✅ Error de sintaxis en línea 90 CORREGIDO
- * ✅ Función escapeHtml() correctamente implementada
- * ✅ Función formatPrice() agregada y funcional
- * ✅ AJAX funcional sin recargar página
- * ✅ Búsqueda en tiempo real optimizada
- * ✅ Prevención de submits accidentales
- * ✅ Manejo de errores robusto
+ * ✅ Búsqueda solo con mínimo 3 caracteres
+ * ✅ Delay aumentado a 1 segundo (1000ms)
+ * ✅ Enter busca inmediatamente
+ * ✅ Mejor feedback visual
+ * ✅ Logs mejorados para debug
+ * ✅ Sin búsquedas innecesarias
  */
 
 // ==========================================
@@ -152,6 +151,7 @@ function clearDeviceSearch() {
                 </svg>
                 <h3 class="text-xl font-bold text-gray-700 mb-2">Busca un dispositivo para vender</h3>
                 <p class="text-gray-500">Usa el buscador arriba para encontrar celulares disponibles</p>
+                <p class="text-sm text-gray-400 mt-2">💡 Escribe al menos 3 caracteres para buscar</p>
             </div>
         `;
     }
@@ -597,38 +597,56 @@ function showNotification(message, type) {
 // EVENT LISTENERS - INICIALIZACIÓN
 // ==========================================
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ Sistema de Ventas Cargado - Moneda: Soles (S/)');
+    console.log('✅ Sistema de Ventas Cargado v9.0 - Búsqueda Optimizada');
+    console.log('💰 Moneda: Soles (S/)');
     
     const searchInput = document.getElementById('deviceSearch');
     if (searchInput) {
-        searchInput.addEventListener('input', function(e) {
-            e.preventDefault();
-            
+        // ⭐ NUEVO: Búsqueda optimizada con mínimo 3 caracteres y delay de 1 segundo
+        searchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
             const value = this.value.trim();
             
             const clearBtn = document.getElementById('clearSearchBtn');
             if (clearBtn) {
-                if (value) {
-                    clearBtn.classList.remove('hidden');
-                } else {
-                    clearBtn.classList.add('hidden');
-                }
+                clearBtn.classList.toggle('hidden', !value);
             }
             
-            searchTimeout = setTimeout(() => searchDevices(), 500);
+            // Solo buscar si hay 3+ caracteres
+            if (value.length >= 3) {
+                console.log(`⏳ Esperando para buscar: "${value}" (${value.length} caracteres)`);
+                searchTimeout = setTimeout(() => {
+                    console.log(`🚀 Ejecutando búsqueda: "${value}"`);
+                    searchDevices();
+                }, 1000); // 1 segundo de espera
+            } else if (value.length === 0) {
+                // Limpiar resultados si está vacío
+                clearDeviceSearch();
+            } else {
+                // Menos de 3 caracteres - mostrar hint
+                console.log(`💡 Escribe al menos 3 caracteres (actual: ${value.length})`);
+            }
         });
         
+        // ⭐ NUEVO: Enter busca inmediatamente sin esperar
         searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 e.stopPropagation();
                 clearTimeout(searchTimeout);
-                searchDevices();
+                
+                const value = this.value.trim();
+                if (value.length >= 3) {
+                    console.log(`⚡ Enter presionado - Búsqueda inmediata: "${value}"`);
+                    searchDevices();
+                } else if (value.length > 0) {
+                    showNotification('Escribe al menos 3 caracteres para buscar', 'info');
+                }
                 return false;
             }
         });
         
+        // Prevenir comportamiento por defecto de keydown con Enter
         searchInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -640,6 +658,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('🔍 Buscador activado');
         });
         
+        // Atajo Ctrl+F para enfocar el buscador
         if (window.innerWidth > 768) {
             document.addEventListener('keydown', function(e) {
                 if (e.ctrlKey && e.key === 'f') {
@@ -662,6 +681,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Cerrar modal con ESC
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             const modal = document.getElementById('saleModal');
@@ -671,6 +691,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // Click fuera del modal para cerrar
     const modal = document.getElementById('saleModal');
     if (modal) {
         modal.addEventListener('click', function(e) {
@@ -680,6 +701,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Validación en tiempo real del precio
     const precioInput = document.getElementById('precio_venta');
     if (precioInput) {
         precioInput.addEventListener('input', function() {
@@ -701,6 +723,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Auto-sugerencia de email basada en nombre
     const nombreInput = document.getElementById('cliente_nombre');
     const emailField = document.getElementById('cliente_email');
     if (nombreInput && emailField) {
@@ -719,6 +742,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Submit del formulario
     const saleForm = document.getElementById('saleForm');
     if (saleForm) {
         saleForm.addEventListener('submit', function(e) {
@@ -729,21 +753,21 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Detectar dispositivo táctil
     if ('ontouchstart' in window) {
         document.body.classList.add('touch-device');
         console.log('📱 Dispositivo táctil detectado');
     }
     
-    console.log('💡 Atajos: Ctrl+F (Buscar) | Esc (Cerrar modal)');
-    console.log('🔍 Escribe en el buscador para encontrar dispositivos');
-    
-    if (window.SALES_CONFIG) {
-        console.log('📊 Configuración:', {
-            disponibles: window.SALES_CONFIG.disponibles,
-            ventasHoy: window.SALES_CONFIG.ventasHoy
-        });
-    }
-    
+    console.log('💡 Atajos disponibles:');
+    console.log('   - Ctrl+F: Enfocar buscador');
+    console.log('   - Esc: Cerrar modal');
+    console.log('   - Enter: Buscar inmediatamente');
+    console.log('');
+    console.log('🔍 Búsqueda optimizada:');
+    console.log('   - Mínimo 3 caracteres para buscar');
+    console.log('   - Delay de 1 segundo antes de buscar');
+    console.log('   - Enter busca sin esperar');
+    console.log('');
     console.log('🚀 Sistema completamente inicializado');
 });
-    
