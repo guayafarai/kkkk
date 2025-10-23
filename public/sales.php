@@ -2,15 +2,15 @@
 /**
  * VENTAS DE CELULARES - VERSIÓN AUTOCONTENIDA EXPERTO
  * Sistema de Inventario de Celulares
- * Versión 10.0 FINAL - TODO EN UNO, SIN DEPENDENCIAS EXTERNAS
+ * Versión 10.3 FINAL - BÚSQUEDA MANUAL (SIN AUTO-BÚSQUEDA)
  * 
  * ✅ Sin sales.js externo
  * ✅ JavaScript inline optimizado
  * ✅ CSS inline moderno
- * ✅ Búsqueda solo con 3+ caracteres
- * ✅ Delay de 1 segundo
+ * ✅ Búsqueda MANUAL (Enter o botón Buscar)
+ * ✅ SIN búsqueda automática mientras escribes
  * ✅ Enter busca inmediatamente
- * ✅ Sin recarga de página
+ * ✅ SIN recarga de página
  * ✅ 100% profesional
  */
 
@@ -1222,7 +1222,8 @@ try {
                     <h2 class="search-title">Buscar Dispositivo</h2>
                 </div>
                 
-                <div class="search-box">
+                <!-- 🔥 FORMULARIO CORREGIDO - PREVIENE RECARGA -->
+                <form class="search-box" onsubmit="return handleSearchSubmit(event)">
                     <div class="search-input-wrapper">
                         <svg class="search-input-icon" viewBox="0 0 24 24" style="width: 20px; height: 20px;">
                             <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
@@ -1233,20 +1234,20 @@ try {
                             class="search-input" 
                             placeholder="Buscar por modelo, marca, capacidad o IMEI..."
                             autocomplete="off">
-                        <button class="clear-btn" id="clearBtn" title="Limpiar búsqueda">✕</button>
+                        <button type="button" class="clear-btn" id="clearBtn" title="Limpiar búsqueda">✕</button>
                     </div>
-                    <button class="search-btn" onclick="searchDevices()">
+                    <button type="submit" class="search-btn">
                         <svg viewBox="0 0 24 24" style="width: 20px; height: 20px;">
                             <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
                         </svg>
                         Buscar
                     </button>
-                </div>
+                </form>
                 
                 <div class="search-info" id="searchInfo"></div>
                 
                 <div class="search-hint">
-                    💡 <strong>Tip:</strong> Escribe al menos 3 caracteres para buscar. Presiona <kbd>Enter</kbd> para buscar inmediatamente.
+                    💡 <strong>Tip:</strong> Presiona <kbd>Enter</kbd> o haz clic en el botón <strong>Buscar</strong> para realizar la búsqueda.
                 </div>
             </div>
             
@@ -1367,8 +1368,10 @@ try {
 
 <script>
 // ============================================================================
-// SISTEMA DE VENTAS MODERNO - JAVASCRIPT INLINE COMPLETO v10.0
+// SISTEMA DE VENTAS MODERNO - JAVASCRIPT INLINE COMPLETO v10.3
 // Sin dependencias externas - Todo autocontenido
+// ✅ CORREGIDO: Sin recarga de página
+// ✅ BÚSQUEDA MANUAL: Solo con Enter o botón Buscar
 // ============================================================================
 
 (function() {
@@ -1377,6 +1380,20 @@ try {
     // Variables globales
     let selectedDevice = null;
     let searchTimeout = null;
+    
+    // ========================================================================
+    // 🔥 FUNCIÓN PARA MANEJAR EL SUBMIT DEL FORMULARIO DE BÚSQUEDA
+    // ========================================================================
+    
+    window.handleSearchSubmit = function(event) {
+        event.preventDefault(); // 🔥 PREVIENE LA RECARGA
+        event.stopPropagation(); // 🔥 EXTRA SEGURIDAD
+        
+        console.log('🚀 Submit del formulario - Ejecutando búsqueda');
+        searchDevices();
+        
+        return false; // 🔥 TRIPLE SEGURIDAD
+    };
     
     // ========================================================================
     // FUNCIONES DE BÚSQUEDA - OPTIMIZADO
@@ -1690,49 +1707,48 @@ try {
     // ========================================================================
     
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('✅ Sistema de Ventas v10.0 - Autocontenido');
+        console.log('✅ Sistema de Ventas v10.3 - BÚSQUEDA MANUAL');
         console.log('💰 Moneda: Soles (S/)');
         console.log('🎨 Diseño: Moderno y Profesional');
+        console.log('🔥 CORREGIDO: Prevención total de recarga');
+        console.log('');
+        console.log('💡 Características:');
+        console.log('   - Búsqueda MANUAL (Enter o botón Buscar)');
+        console.log('   - SIN búsqueda automática mientras escribes');
+        console.log('   - Enter: Buscar inmediatamente');
+        console.log('   - Esc: Cerrar modal');
+        console.log('✅ Prevención de recarga: ACTIVA');
+        console.log('🚀 Sistema completamente inicializado');
         
         const searchInput = document.getElementById('deviceSearch');
         const clearBtn = document.getElementById('clearBtn');
         
-        // ⭐ BÚSQUEDA OPTIMIZADA: Solo con 3+ caracteres y delay de 1 segundo
+        // ⭐ MOSTRAR/OCULTAR BOTÓN DE LIMPIAR
         searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
             const value = this.value.trim();
-            
             clearBtn.classList.toggle('visible', value.length > 0);
-            
-            if (value.length >= 3) {
-                console.log(`⏳ Esperando para buscar: "${value}"`);
-                searchTimeout = setTimeout(() => {
-                    console.log(`🚀 Ejecutando búsqueda: "${value}"`);
-                    searchDevices();
-                }, 1000); // 1 segundo de delay
-            } else if (value.length === 0) {
-                clearSearch();
-            }
         });
         
-        // ⭐ ENTER busca inmediatamente
+        // ⭐ ENTER busca inmediatamente - CON PREVENCIÓN DE SUBMIT
         searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                e.preventDefault();
+                e.preventDefault(); // 🔥 CRÍTICO
+                e.stopPropagation(); // 🔥 EXTRA SEGURIDAD
                 clearTimeout(searchTimeout);
                 
-                const value = this.value.trim();
-                if (value.length >= 3) {
-                    console.log(`⚡ Enter - Búsqueda inmediata: "${value}"`);
-                    searchDevices();
-                } else if (value.length > 0) {
-                    showToast('Escribe al menos 3 caracteres para buscar', 'error');
-                }
+                console.log(`⚡ Enter - Búsqueda inmediata`);
+                searchDevices();
+                
+                return false; // 🔥 TRIPLE SEGURIDAD
             }
         });
         
-        // Click en botón limpiar
-        clearBtn.addEventListener('click', clearSearch);
+        // Click en botón limpiar - CON PREVENCIÓN
+        clearBtn.addEventListener('click', function(e) {
+            e.preventDefault(); // 🔥 PREVENIR CUALQUIER SUBMIT
+            e.stopPropagation();
+            clearSearch();
+        });
         
         // Cerrar modal con ESC
         document.addEventListener('keydown', function(e) {
@@ -1750,12 +1766,6 @@ try {
                 closeModal();
             }
         });
-        
-        console.log('💡 Atajos:');
-        console.log('   - Enter: Buscar inmediatamente');
-        console.log('   - Esc: Cerrar modal');
-        console.log('🔍 Búsqueda: Mínimo 3 caracteres, delay 1 segundo');
-        console.log('🚀 Sistema completamente inicializado');
     });
     
 })();
